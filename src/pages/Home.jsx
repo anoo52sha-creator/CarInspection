@@ -1241,12 +1241,18 @@ export default function Home() {
         <span className="font-semibold text-white">Book your inspection today!</span>
       </p>
 
-      <button
+      {/* <button
         onClick={() => window.location.href = "/book-inspection"}
         className="mt-6 px-10 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 transition text-white font-semibold shadow-lg"
       >
         BOOK NOW
-      </button>
+      </button> */}
+       <button
+          onClick={() => window.location.href = "/book-inspection"}
+          className="mt-6 px-10 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 transition text-white font-semibold shadow-lg"
+        >
+          Book Now
+        </button>
     </div>
   </div>
 </section>

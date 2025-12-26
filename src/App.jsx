@@ -4,6 +4,8 @@ import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Result from "./pages/Result";
 import Pricing from "./pages/Pricing";
+import Contact from "./pages/Contact";
+import CarService from "./pages/CarService";
 import BookingForm from "./pages/BookingForm";
 import ThankYou from "./pages/ThankYou";
 export default function App() {
@@ -20,6 +22,8 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/book-inspection" element={<BookingForm />} />
             <Route path="/thank-you" element={<ThankYou />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/car-service" element={<CarService />} />
 
           </Routes>
           <Footer />
