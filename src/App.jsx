@@ -8,6 +8,7 @@ import Contact from "./pages/Contact";
 import CarService from "./pages/CarService";
 import BookingForm from "./pages/BookingForm";
 import ThankYou from "./pages/ThankYou";
+import WhatsAppButton from "./components/WhatsAppButton";
 export default function App() {
   return (
     <BrowserRouter>
@@ -25,10 +26,13 @@ export default function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/car-service" element={<CarService />} />
 
+          
           </Routes>
+          <WhatsAppButton />
           <Footer />
         </div>
       </div>
     </BrowserRouter>
   );
+    //Test
 }

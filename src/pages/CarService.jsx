@@ -1,5 +1,17 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import {
+  Car,
+  Wrench,
+  Battery,
+  Gauge,
+  Cog,
+  ShieldCheck,
+  CalendarCheck,
+  Truck,
+  FileText,
+  CheckCircle2,
+} from "lucide-react";
 //New
 export default function CarService() {
   return (
@@ -85,32 +97,38 @@ export default function CarService() {
 
       {[
         {
-          icon: "🛢️",
+          // icon: "🛢️",
+          icon: <Wrench />,
           title: "Oil & Filter Change",
           desc: "High-quality engine oil and filter replacement at your doorstep."
         },
         {
-          icon: "🔋",
+          // icon: "🔋",
+          icon: <Battery />,
           title: "Battery Replacement",
           desc: "Battery testing, jump-start, and replacement with warranty support."
         },
         {
-          icon: "🧰",
+          // icon: "🧰",
+          icon: <Car />,
           title: "General Car Service",
           desc: "Complete multi-point inspection for smooth and safe driving."
         },
         {
-          icon: "🖥️",
+          // icon: "🖥️",
+          icon: <Gauge />,
           title: "Computer Diagnostics",
           desc: "Advanced diagnostic scan to detect hidden vehicle issues early."
         },
         {
-          icon: "🛞",
+          // icon: "🛞",
+          icon: <Cog />,
           title: "Brakes & Suspension",
           desc: "Brake pads, discs, and suspension inspection for maximum safety."
         },
         {
-          icon: "🧼",
+          // icon: "🧼",
+          icon: <ShieldCheck />,
           title: "Car Wash & Detailing",
           desc: "Exterior wash and interior cleaning without visiting a garage."
         }
@@ -153,7 +171,7 @@ export default function CarService() {
         className="inline-block px-12 py-4 rounded-xl 
                    bg-blue-600 text-white font-semibold text-lg
                    hover:bg-blue-500 transition 
-                   shadow-[0_0_40px_rgba(59,130,246,0.6)"
+                   shadow-[0_0_40px_rgba(59,130,246,0.6)]"
       >
         Book Mobile Car Service
       </Link>
@@ -202,7 +220,8 @@ export default function CarService() {
         With CheckAnyCar, your car gets expert attention at your doorstep, and
         you get to carry on with your day uninterrupted.
       </p>
-      <br></br>
+      <br />
+
       {/* <button 
           onClick={() => window.location.href = "/contact"}
           className="mt-8 px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg">
@@ -252,19 +271,22 @@ export default function CarService() {
           title: "Basic Minor Car Service Package in UAE",
           desc:
             "Our basic minor service package covers all the essentials, including oil change, filter replacements, brake checks, and fluid top-ups—perfect for everyday reliability and preventive maintenance.",
-          icon: "🧰",
+          // icon: "🧰",
+          icon: <Wrench size={32} />,
         },
         {
           title: "Premium Car Servicing at Home Dubai",
           desc:
             "For those who want more detailed care, our premium package includes extended checks, system diagnostics, and part replacements with full transparency and professional reporting.",
-          icon: "🚐",
+          // icon: "🚐",
+          icon: <Car size={32} />,
         },
         {
           title: "Specialized Services",
           desc:
             "Some cars need extra care. From hybrid systems to advanced diagnostics, our specialized services are handled by experts trained in both modern and older vehicle models.",
-          icon: "⚙️",
+          // icon: "⚙️",
+          icon: <Cog size={32} />,
         },
       ].map((pkg, i) => (
         <div
@@ -323,9 +345,8 @@ export default function CarService() {
       className="mt-8 px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg">
         Book Inspection Now
       </button> */}
-      <br></br>
-      <br>
-      </br>
+      <br />
+<br />
      <Link
       to="/book-inspection"
       className="mt-8 px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg"
@@ -365,32 +386,37 @@ export default function CarService() {
     </div>
 
     {/* Steps */}
-    <div className="grid md:grid-cols-5 gap-8">
+    {/* <div className="grid md:grid-cols-5 gap-8">
       {[
         {
           title: "Book Your Service",
           desc: "Choose a convenient slot through our website or by contacting us directly.",
-          icon: "📅",
+          // icon: "📅",
+           icon: <CalendarCheck />,
         },
         {
           title: "We Arrive at Your Location",
           desc: "Our mobile unit arrives fully equipped with tools and required parts.",
-          icon: "🚐",
+          // icon: "🚐",
+          icon: <Truck />,
         },
         {
           title: "Service Carried Out",
           desc: "From minor services to premium care, everything is done with full transparency.",
-          icon: "🧰",
+          // icon: "🧰",
+          icon: <Wrench />,
         },
         {
           title: "Inspection Report Shared",
           desc: "We explain the work completed and provide recommendations for future care.",
-          icon: "📊",
+          // icon: "📊",
+          icon: <FileText />,
         },
         {
           title: "Drive Worry-Free",
           desc: "Your car is ready to go—no workshop visits, no stress.",
-          icon: "✅",
+          // icon: "✅",
+          icon: <CheckCircle2 />,
         },
       ].map((step, i) => (
         <div
@@ -407,7 +433,60 @@ export default function CarService() {
           </p>
         </div>
       ))}
+    </div> */}
+    <div className="grid md:grid-cols-5 gap-8">
+  {[
+    {
+      title: "Book Your Service",
+      desc: "Choose a convenient slot through our website or by contacting us directly.",
+      Icon: CalendarCheck,
+    },
+    {
+      title: "We Arrive at Your Location",
+      desc: "Our mobile unit arrives fully equipped with tools and required parts.",
+      Icon: Truck,
+    },
+    {
+      title: "Service Carried Out",
+      desc: "From minor services to premium care, everything is done with full transparency.",
+      Icon: Wrench,
+    },
+    {
+      title: "Inspection Report Shared",
+      desc: "We explain the work completed and provide recommendations for future care.",
+      Icon: FileText,
+    },
+    {
+      title: "Drive Worry-Free",
+      desc: "Your car is ready to go—no workshop visits, no stress.",
+      Icon: CheckCircle2,
+    },
+  ].map((step, i) => (
+    <div
+      key={i}
+      className="bg-slate-900 border border-blue-500/20 rounded-2xl p-6 
+                 hover:border-blue-400 
+                 hover:shadow-[0_0_35px_rgba(59,130,246,0.35)] 
+                 transition text-center"
+    >
+      {/* ICON */}
+      <div className="flex justify-center mb-4">
+        <step.Icon className="w-10 h-10 text-blue-400" />
+      </div>
+
+      {/* TITLE */}
+      <h3 className="text-lg font-semibold text-white mb-2">
+        {step.title}
+      </h3>
+
+      {/* DESCRIPTION */}
+      <p className="text-gray-400 text-sm leading-relaxed">
+        {step.desc}
+      </p>
     </div>
+  ))}
+    </div>
+
   </div>
 </section>
 
@@ -655,3 +734,221 @@ export default function CarService() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+// import React from "react";
+// import { Link } from "react-router-dom";
+// import {
+//   Car,
+//   Wrench,
+//   Battery,
+//   Gauge,
+//   Cog,
+//   ShieldCheck,
+//   Calendar,
+//   MapPin,
+//   ClipboardCheck,
+//   CheckCircle,
+//   PhoneCall,
+//   Timer,
+// } from "lucide-react";
+
+// export default function CarService() {
+//   return (
+//     <>
+//       {/* HERO */}
+//       <section className="py-24 px-6 bg-slate-950">
+//         <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
+//           <div>
+//             <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+//               Get Your{" "}
+//               <span className="text-blue-400">Mobile Car Serviced</span> Without
+//               Leaving Home
+//             </h1>
+
+//             <p className="mt-6 text-gray-400 max-w-xl">
+//               Enjoy hassle-free, expert mobile car service at your doorstep
+//               anywhere in UAE.
+//             </p>
+
+//             <ul className="mt-6 space-y-3 text-gray-300">
+//               {[
+//                 "Fully Equipped Mobile Technicians",
+//                 "On-Site Car Servicing Anywhere in UAE",
+//                 "Garage-Quality Service at Your Doorstep",
+//                 "Dedicated Service Manager",
+//               ].map((item, i) => (
+//                 <li key={i} className="flex gap-3">
+//                   <CheckCircle size={18} className="text-blue-400 mt-1" />
+//                   {item}
+//                 </li>
+//               ))}
+//             </ul>
+
+//             <div className="mt-8 flex gap-6 items-center">
+//               <button
+//                 onClick={() =>
+//                   document
+//                     .getElementById("faq")
+//                     ?.scrollIntoView({ behavior: "smooth" })
+//                 }
+//                 className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg"
+//               >
+//                 Book Our Service Now
+//               </button>
+
+//               <div className="text-sm text-gray-400">
+//                 ⭐⭐⭐⭐⭐ 5.0 <br />
+//                 Call us on{" "}
+//                 <span className="text-blue-400">800-24325</span>
+//               </div>
+//             </div>
+//           </div>
+
+//           <img
+//             src="/mobile-car-service.png"
+//             alt="Mobile Car Service"
+//             className="rounded-2xl"
+//           />
+//         </div>
+//       </section>
+
+//       {/* SERVICES */}
+//       <section className="py-24 px-6 bg-slate-950">
+//         <div className="max-w-7xl mx-auto">
+//           <h2 className="text-4xl font-bold text-white text-center mb-16">
+//             Our <span className="text-blue-400">Mobile Car Services</span>
+//           </h2>
+
+//           <div className="grid md:grid-cols-3 gap-8">
+//             {[
+//               {
+//                 icon: <Wrench />,
+//                 title: "Oil & Filter Change",
+//                 desc: "Premium oil replacement at your doorstep.",
+//               },
+//               {
+//                 icon: <Battery />,
+//                 title: "Battery Replacement",
+//                 desc: "Battery testing & replacement with warranty.",
+//               },
+//               {
+//                 icon: <Car />,
+//                 title: "General Car Service",
+//                 desc: "Complete inspection & maintenance.",
+//               },
+//               {
+//                 icon: <Gauge />,
+//                 title: "Diagnostics",
+//                 desc: "Advanced computer diagnostic scan.",
+//               },
+//               {
+//                 icon: <Cog />,
+//                 title: "Brakes & Suspension",
+//                 desc: "Safety checks & component replacement.",
+//               },
+//               {
+//                 icon: <ShieldCheck />,
+//                 title: "Car Wash & Detailing",
+//                 desc: "Professional exterior & interior care.",
+//               },
+//             ].map((s, i) => (
+//               <div
+//                 key={i}
+//                 className="bg-slate-900 border border-blue-500/20 p-6 rounded-2xl hover:shadow-[0_0_35px_rgba(59,130,246,0.3)] transition"
+//               >
+//                 <div className="text-blue-400 bg-blue-500/10 w-fit p-3 rounded-xl mb-4">
+//                   {s.icon}
+//                 </div>
+//                 <h3 className="text-xl text-white font-semibold mb-2">
+//                   {s.title}
+//                 </h3>
+//                 <p className="text-gray-400">{s.desc}</p>
+//               </div>
+//             ))}
+//           </div>
+
+//           <div className="text-center mt-20">
+//             <Link
+//               to="/book-inspection"
+//               className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg inline-block"
+//             >
+//               Book Mobile Car Service
+//             </Link>
+//           </div>
+//         </div>
+//       </section>
+
+//       {/* PROCESS */}
+//       <section className="py-24 px-6 bg-slate-900">
+//         <div className="max-w-7xl mx-auto">
+//           <h2 className="text-4xl font-bold text-white text-center mb-16">
+//             How It <span className="text-blue-400">Works</span>
+//           </h2>
+
+//           <div className="grid md:grid-cols-5 gap-8">
+//             {[
+//               { icon: <Calendar />, title: "Book Service" },
+//               { icon: <MapPin />, title: "We Arrive" },
+//               { icon: <Wrench />, title: "Service Done" },
+//               { icon: <ClipboardCheck />, title: "Report Shared" },
+//               { icon: <CheckCircle />, title: "Drive Happy" },
+//             ].map((step, i) => (
+//               <div
+//                 key={i}
+//                 className="bg-slate-950 border border-blue-500/20 p-6 rounded-2xl text-center"
+//               >
+//                 <div className="text-blue-400 mx-auto mb-4">
+//                   {step.icon}
+//                 </div>
+//                 <p className="text-white font-medium">{step.title}</p>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       </section>
+
+//       {/* CTA */}
+//       <section className="py-28 px-6 bg-gradient-to-b from-slate-900 to-slate-950 text-center">
+//         <h2 className="text-4xl font-bold text-white">
+//           Book Now &{" "}
+//           <span className="text-blue-400">Pay Later</span>
+//         </h2>
+
+//         <div className="mt-10 flex justify-center gap-4">
+//           {["59 Sec"].map((t, i) => (
+//             <div
+//               key={i}
+//               className="flex items-center gap-2 bg-slate-900 border border-blue-500/30 px-5 py-3 rounded-xl text-white"
+//             >
+//               <Timer size={18} className="text-blue-400" />
+//               {t}
+//             </div>
+//           ))}
+//         </div>
+
+//         <a
+//           href="tel:800-24325"
+//           className="inline-flex items-center gap-2 mt-12 px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg"
+//         >
+//           <PhoneCall size={18} />
+//           CALL US ON 800-24325
+//         </a>
+//       </section>
+
+//       {/* FAQ */}
+//       <section id="faq" className="py-24 px-6 bg-slate-950">
+//         <h2 className="text-4xl font-bold text-white text-center mb-12">
+//           Frequently Asked{" "}
+//           <span className="text-blue-400">Questions</span>
+//         </h2>
+//       </section>
+//     </>
+//   );
+// }
