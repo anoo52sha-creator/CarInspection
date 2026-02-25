@@ -79,7 +79,7 @@ const ImageGrid = ({ images, title = "Images" }) => {
     </div>
   );
 };
-
+//  --
 async function waitForImages(rootEl) {
   const imgs = Array.from(rootEl.querySelectorAll("img"));
   await Promise.all(
