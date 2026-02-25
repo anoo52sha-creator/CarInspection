@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { MapPin, ClipboardCheck, Clock } from "lucide-react";
 
 export default function Home() {
@@ -44,18 +45,8 @@ export default function Home() {
 
   return (
     <>
-      {/* ================= HERO ================= */}
-      {/* <section
-        className="min-h-screen flex flex-col justify-center text-center px-6"
-        style={{
-          backgroundImage: `
-            linear-gradient(to bottom, rgba(2,6,23,0.75), rgba(2,6,23,0.95)),
-            url('/Realisticbg.png')
-          `,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      > */}
+     
+      {/* working
       <section
         className="hero-bg min-h-screen flex items-center justify-center px-6 text-center relative"
         style={{
@@ -86,7 +77,7 @@ export default function Home() {
         </p>
 
         {/* SEARCH */}
-        <div className="mt-10 max-w-xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+        {/* <div className="mt-10 max-w-xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
           <input
             value={value}
             onChange={(e) => setValue(e.target.value.toUpperCase())}
@@ -105,15 +96,110 @@ export default function Home() {
         </div>
 
         {/* GOOGLE RATING */}
-        <div
+        {/* <div
           onClick={scrollToReviews}
           className="mt-8 flex justify-center items-center gap-2 cursor-pointer"
         >
           <img src="/google-logo.png" className="h-6" />
           <span className="text-yellow-400 font-semibold">★★★★★ 5.0</span>
         </div>
-      </section>
+      </section> */}
+<section
+  className="relative w-full min-h-screen flex items-center px-6 md:px-16 overflow-hidden"
+  style={{
+    backgroundImage: `
+      linear-gradient(
+        90deg,
+        rgba(2,6,23,0.95) 0%,
+        rgba(2,6,23,0.85) 35%,
+        rgba(2,6,23,0.55) 65%,
+        rgba(2,6,23,0.15) 100%
+      ),
+      url('/ppi-inspection1.jpg')
+    `,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  }}
+>
+  <div className="max-w-2xl">
+    
+    {/* TITLE */}
+    <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight">
+      <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+        Auto Vera
+      </span>
+      <br />
+      Smart Vehicle Intelligence
+    </h1>
 
+    {/* SUBTITLE */}
+    <p className="mt-6 text-lg text-gray-300">
+      Verify any vehicle instantly using number or VIN.
+    </p>
+
+    {/* SEARCH BOX */}
+    {/* <div className="mt-10 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value.toUpperCase())}
+        placeholder="Enter Vehicle Number or VIN"
+        className="w-full bg-transparent outline-none text-lg text-white placeholder-gray-400"
+      />
+
+      {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+
+      <button
+        onClick={handleSearch}
+        className="mt-4 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition shadow-lg text-white font-semibold"
+      >
+        Search
+      </button>
+    </div> */}
+
+{/* SEARCH BOX */}
+<div className="mt-10 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+  <input
+    value={value}
+    onChange={(e) => setValue(e.target.value.toUpperCase())}
+    placeholder="Enter Vehicle Number or VIN"
+    className="w-full bg-transparent outline-none text-lg text-white placeholder-gray-400"
+  />
+
+  {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+
+  {/* ✨ This is the new container for the buttons ✨ */}
+  <div className="mt-4 flex flex-col sm:flex-row gap-3">
+
+    {/* 1. Your original button, now for searching */}
+    <button
+      onClick={handleSearch}
+      className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition shadow-lg text-white font-semibold"
+    >
+      Search Report
+    </button>
+
+    {/* 2. The NEW button for generating reports (using <Link>) */}
+    <Link
+      to="/create-report"
+      className="w-full text-center py-3 rounded-xl bg-green-600 hover:bg-green-500 transition shadow-lg text-white font-semibold"
+    >
+      Generate New Report
+    </Link>
+    
+  </div>
+</div>
+    {/* GOOGLE RATING */}
+    <div
+      onClick={scrollToReviews}
+      className="mt-8 flex items-center gap-2 cursor-pointer"
+    >
+      <img src="/google-logo.png" className="h-6" />
+      <span className="text-yellow-400 font-semibold">★★★★★ 5.0</span>
+    </div>
+
+  </div>
+</section>
       {/* ================= WHY PPI IMPORTANT ================= */}
 <section className="py-24 px-6 bg-slate-950 text-center">
   <h2 className="text-3xl md:text-4xl font-extrabold text-white">

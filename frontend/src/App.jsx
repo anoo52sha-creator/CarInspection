@@ -3,6 +3,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Result from "./pages/Result";
+import CreateReport from "./pages/CreateReport";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import CarService from "./pages/CarService";
@@ -10,6 +11,7 @@ import BookingForm from "./pages/BookingForm";
 import ThankYou from "./pages/ThankYou";
 import WhatsAppButton from "./components/WhatsAppButton";
 import AIChatWidget from "./components/AIChatWidget";
+import Report from "./pages/Report";  // Add this line
 export default function App() {
   return (
     <BrowserRouter>
@@ -26,8 +28,11 @@ export default function App() {
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/car-service" element={<CarService />} />
-
-          
+             {/* Page for creating/editing a new report */}
+            <Route path="/create-report" element={<CreateReport />} />
+            {/* <Route path="/report" element={<Report />} /> */}
+            <Route path="/report/:id" element={<Report />} />
+ 
           </Routes>
           <WhatsAppButton />
            <AIChatWidget />
