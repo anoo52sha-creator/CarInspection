@@ -1,7 +1,7 @@
 import { useLocation, useParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { Star, Download, Printer, Loader2 } from "lucide-react";
-
+//NEW
 const API_URL = "http://localhost:5001/api";
 
 const SectionHeader = ({ title }) => (
