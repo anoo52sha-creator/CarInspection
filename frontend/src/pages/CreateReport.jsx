@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import axios from "axios";
 
 //const API_URL = "http://localhost:5001/api";
-const API_URL = "https://car-inspection-cs4f.vercel.app/api";
+const API_URL = "https://car-inspection-phi.vercel.app/api";
 
 
 const initialState = {
