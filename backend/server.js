@@ -25,13 +25,13 @@ cloudinary.config({
 });
 
 // PostgreSQL Pool
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+// const pool = new Pool({
+//   user: process.env.DB_USER,
+//   host: process.env.DB_HOST,
+//   database: process.env.DB_NAME,
+//   password: process.env.DB_PASSWORD,
+//   port: process.env.DB_PORT,
+// });
 
 // Multer Storage for Cloudinary
 const storage = new CloudinaryStorage({
@@ -253,6 +253,13 @@ app.get('/api/reports', async (req, res) => {
 // app.listen(PORT, () => {
 //   console.log(`Server running on port ${PORT}`);
 // });
+ 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 export default app;
 
 // import express from "express";
