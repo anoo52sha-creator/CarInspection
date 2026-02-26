@@ -23,7 +23,22 @@ const pool = new Pool({
 });
 
 // Middleware
-app.use(cors());
+//app.use(cors());
+// ❌ DELETE OLD: app.use(cors());
+// ✅ USE THIS:
+app.use(cors({
+  // Allow your live frontend + local dev frontend
+  origin: ["https://car-inspection-jmi3.vercel.app", "http://localhost:5173"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}))
+// Add this right after your CORS middleware, before all other API routes
+app.get('/', (req, res) => {
+  res.json({
+    status: "✅ API Online",
+    message: "Car Inspection Backend is running"
+  })
+})
 app.use(express.json());
 
 // Cloudinary Configuration
