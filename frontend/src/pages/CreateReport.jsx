@@ -4,7 +4,9 @@ import { Star, Upload, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import axios from "axios";
 
-const API_URL = "http://localhost:5001/api";
+//const API_URL = "http://localhost:5001/api";
+const API_URL = "https://car-inspection-cs4f.vercel.app/api";
+
 
 const initialState = {
   reportId: "SYC-" + Math.floor(1000 + Math.random() * 9000),
