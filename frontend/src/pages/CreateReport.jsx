@@ -481,10 +481,10 @@ export default function CreateReport() {
       formDataToSend.append("reportData", JSON.stringify(formData));
 
       console.log("Submitting report...", formData.reportId);
-      const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
+      // const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
+      //   headers: { "Content-Type": "multipart/form-data" },
+      // });
+const response = await axios.post(`${API_URL}/reports`, formDataToSend);
       console.log("Raw response:", response.data);
 
       if (response.data.success) {
