@@ -76,18 +76,18 @@ const upload = multer({ storage });
 
 // Multiple file upload middleware
 const multipleUpload = upload.fields([
-  { name: 'vehicleImages', maxCount: 10 },
-  { name: 'paintBodyImages', maxCount: 10 },
-  { name: 'engineImages', maxCount: 10 },
-  { name: 'suspensionImages', maxCount: 10 },
-  { name: 'interiorImages', maxCount: 10 },
-  { name: 'batteryImages', maxCount: 10 },
-  { name: 'specsImages', maxCount: 10 },
-  { name: 'diagnosticPdf', maxCount: 1 },
-  { name: 'tyreImages_frontLhs', maxCount: 5 },
-  { name: 'tyreImages_frontRhs', maxCount: 5 },
-  { name: 'tyreImages_rearLhs', maxCount: 5 },
-  { name: 'tyreImages_rearRhs', maxCount: 5 },
+  { name: 'vehicleImages', maxCount: 100 },
+  { name: 'paintBodyImages', maxCount: 100 },
+  { name: 'engineImages', maxCount: 100 },
+  { name: 'suspensionImages', maxCount: 100 },
+  { name: 'interiorImages', maxCount: 100 },
+  { name: 'batteryImages', maxCount: 100 },
+  { name: 'specsImages', maxCount: 100 },
+  { name: 'diagnosticPdf', maxCount: 100 },
+  { name: 'tyreImages_frontLhs', maxCount: 100 },
+  { name: 'tyreImages_frontRhs', maxCount: 100 },
+  { name: 'tyreImages_rearLhs', maxCount: 100 },
+  { name: 'tyreImages_rearRhs', maxCount: 100 },
 ]);
 
 // Auto create database table on first run
@@ -433,6 +433,9 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 export default app;
+
+
+
 // Uncomment this block ONLY for local development
 // const PORT = process.env.PORT || 5001;
 // app.listen(PORT, () => {

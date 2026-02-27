@@ -2,7 +2,8 @@ import { useLocation, useParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { Star, Download, Printer, Loader2 } from "lucide-react";
 //NEW
-const API_URL = "http://localhost:5001/api";
+// const API_URL = "http://localhost:5001/api";
+const API_URL = "https://car-inspection-two.vercel.app/api";
 
 const SectionHeader = ({ title }) => (
   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
@@ -38,7 +39,7 @@ const TyreInfo = ({ side, data }) => {
       {images.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
-          <ImageGrid images={images} title={`${side} Tyre Images`} />
+          <ImageCarousel  images={images} title={`${side} Tyre Images`} />
         </div>
       )}
     </div>
@@ -80,6 +81,67 @@ const ImageGrid = ({ images, title = "Images" }) => {
   );
 };
 //  --
+
+// ✅ NEW: Image Carousel Component (add this BEFORE the main export)
+const ImageCarousel = ({ images, title = "Images" }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  if (!images || images.length === 0) {
+    return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+  }
+
+  const nextImage = () => setCurrentIndex((prev) => (prev + 1) % images.length);
+  const prevImage = () => setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+
+  return (
+    <div className="mt-4">
+      <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
+      <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+        <img 
+          src={images[currentIndex]} 
+          alt={`${title} ${currentIndex + 1}`} 
+          className="w-full h-48 object-cover"
+          crossOrigin="anonymous" // ✅ Important for PDF rendering
+        />
+        
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={prevImage}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 text-sm transition-colors"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={nextImage}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 text-sm transition-colors"
+            >
+              →
+            </button>
+            
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {images.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentIndex(idx)}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    idx === currentIndex ? "bg-white" : "bg-white/50"
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mt-1 text-center">
+        {currentIndex + 1} of {images.length}
+      </p>
+    </div>
+  );
+};
 async function waitForImages(rootEl) {
   const imgs = Array.from(rootEl.querySelectorAll("img"));
   await Promise.all(
@@ -98,7 +160,6 @@ async function waitForImages(rootEl) {
     )
   );
 }
-
 export default function Report() {
   const { state } = useLocation();
   const { id } = useParams();
@@ -173,15 +234,26 @@ export default function Report() {
       const el = reportRef.current;
       await waitForImages(el);
 
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#FFFFFF",
-        logging: false,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
-      });
-
+      // const canvas = await html2canvas(el, {
+      //   scale: 2,
+      //   useCORS: true,
+      //   backgroundColor: "#FFFFFF",
+      //   logging: false,
+      //   windowWidth: el.scrollWidth,
+      //   windowHeight: el.scrollHeight,
+      // });
+const canvas = await html2canvas(el, {
+  scale: 2,
+  useCORS: true,          // ✅ Already correct
+  allowTaint: false,      // ✅ ADD THIS (security)
+  backgroundColor: "#FFFFFF",
+  logging: false,
+  windowWidth: el.scrollWidth,
+  windowHeight: el.scrollHeight,
+  // ✅ ADD THESE for better image handling
+  imageTimeout: 30000,    // Wait up to 30s for images
+  removeContainer: true,
+});
       const imgData = canvas.toDataURL("image/jpeg", 1.0);
 
       const pdf = new jsPDF("p", "mm", "a4");
@@ -348,7 +420,7 @@ export default function Report() {
         {reportData.paintAndBody?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Paint & Body Images (Uploaded)" />
-            <ImageGrid images={reportData.paintAndBody.images} title="Paint & Body Images" />
+            <ImageCarousel  images={reportData.paintAndBody.images} title="Paint & Body Images" />
           </div>
         )}
 
@@ -369,7 +441,7 @@ export default function Report() {
         {reportData.engineTransmission?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Engine Images (Uploaded)" />
-            <ImageGrid images={reportData.engineTransmission.images} title="Engine Images" />
+            <ImageCarousel  images={reportData.engineTransmission.images} title="Engine Images" />
           </div>
         )}
 
@@ -384,7 +456,7 @@ export default function Report() {
         {reportData.suspensionSteering?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Suspension Images (Uploaded)" />
-            <ImageGrid images={reportData.suspensionSteering.images} title="Suspension Images" />
+            <ImageCarousel  images={reportData.suspensionSteering.images} title="Suspension Images" />
           </div>
         )}
 
@@ -399,7 +471,7 @@ export default function Report() {
         {reportData.interiors?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Interior Images (Uploaded)" />
-            <ImageGrid images={reportData.interiors.images} title="Interior Images" />
+            <ImageCarousel  images={reportData.interiors.images} title="Interior Images" />
           </div>
         )}
 
@@ -410,7 +482,7 @@ export default function Report() {
         {reportData.batteryAnalysis?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Battery Images (Uploaded)" />
-            <ImageGrid images={reportData.batteryAnalysis.images} title="Battery Images" />
+            <ImageCarousel  images={reportData.batteryAnalysis.images} title="Battery Images" />
           </div>
         )}
 
@@ -425,7 +497,7 @@ export default function Report() {
         {reportData.otherSpecifications?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Other Specs Images (Uploaded)" />
-            <ImageGrid images={reportData.otherSpecifications.images} title="Other Specs Images" />
+            <ImageCarousel  images={reportData.otherSpecifications.images} title="Other Specs Images" />
           </div>
         )}
 

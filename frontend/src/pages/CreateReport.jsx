@@ -301,14 +301,52 @@ const ImageUpload = ({ label, files, setFiles, accept = "image/*", multiple = tr
   );
 };
 
+// const StatusSelector = ({ value, onChange }) => {
+//   const options = ["OKAY", "NOT OKAY", "N/A", "WORKING FINE", "NORMAL", "GOOD", "POOR", "MINOR RUST"];
+//   const isCustom = !options.includes(value) && value !== "";
+//   return (
+//     <div className="flex gap-2">
+//       <select
+//         value={isCustom ? "custom" : value}
+//         onChange={(e) => onChange(e.target.value === "custom" ? "" : e.target.value)}
+//         className="w-full p-2 border-slate-300 rounded bg-slate-50 text-slate-900"
+//       >
+//         <option value="">Select Status</option>
+//         {options.map((opt) => (
+//           <option key={opt} value={opt}>
+//             {opt}
+//           </option>
+//         ))}
+//         <option value="custom">Custom...</option>
+//       </select>
+//       {isCustom && (
+//         <input
+//           type="text"
+//           value={value}
+//           onChange={(e) => onChange(e.target.value)}
+//           className="w-full p-2 border-blue-400 rounded bg-white text-slate-900"
+//           placeholder="Custom status"
+//         />
+//       )}
+//     </div>
+//   );
+// };
+// ✅ FIXED StatusSelector Component
 const StatusSelector = ({ value, onChange }) => {
   const options = ["OKAY", "NOT OKAY", "N/A", "WORKING FINE", "NORMAL", "GOOD", "POOR", "MINOR RUST"];
   const isCustom = !options.includes(value) && value !== "";
+  
   return (
     <div className="flex gap-2">
       <select
-        value={isCustom ? "custom" : value}
-        onChange={(e) => onChange(e.target.value === "custom" ? "" : e.target.value)}
+        value={isCustom ? "custom" : (value || "")}
+        onChange={(e) => {
+          if (e.target.value === "custom") {
+            onChange("CUSTOM: "); // ✅ Set a default custom value
+          } else {
+            onChange(e.target.value);
+          }
+        }}
         className="w-full p-2 border-slate-300 rounded bg-slate-50 text-slate-900"
       >
         <option value="">Select Status</option>
@@ -325,13 +363,12 @@ const StatusSelector = ({ value, onChange }) => {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full p-2 border-blue-400 rounded bg-white text-slate-900"
-          placeholder="Custom status"
+          placeholder="Enter custom status"
         />
       )}
     </div>
   );
 };
-
 const ChecklistSection = ({ title, data, sectionName, onChange, files, setFiles, showUpload = true }) => {
   const items = Object.keys(data).filter((key) => key !== "comments" && key !== "images");
   return (
@@ -491,20 +528,51 @@ const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
 });
       console.log("Raw response:", response.data);
 
-      if (response.data.success) {
-        const savedId = response.data.report?.report_id || formData.reportId;
-        console.log("Report saved, navigating with id:", savedId);
+      // if (response.data.success) {
+      //   const savedId = response.data.report?.report_id || formData.reportId;
+      //   console.log("Report saved, navigating with id:", savedId);
 
-        setSuccess(true);
-        setTimeout(() => {
-          navigate(`/report/${savedId}`, {
-            state: {
-              autoDownload: true,
-              finalReportData: formData,
-            },
-          });
-        }, 1500);
-      } else {
+      //   setSuccess(true);
+      //   setTimeout(() => {
+      //     navigate(`/report/${savedId}`, {
+      //       state: {
+      //         autoDownload: true,
+      //         finalReportData: formData,
+      //       },
+      //     });
+      //   }, 1500);
+      // } 
+      // ✅ REPLACE THIS SECTION IN handleSubmit
+if (response.data.success) {
+  const savedReport = response.data.report;
+  const savedId = savedReport.report_id || formData.reportId;
+  console.log("Report saved, navigating with id:", savedId);
+
+  setSuccess(true);
+  setTimeout(() => {
+    navigate(`/report/${savedId}`, {
+      state: {
+        autoDownload: true,
+        // ✅ Use the report data FROM BACKEND which has image URLs
+        finalReportData: {
+          ...formData,
+          vehicleSummary: {
+            ...formData.vehicleSummary,
+            vehicleImages: savedReport.vehicle_data?.vehicleImages || []
+          },
+          wheels: savedReport.wheels_data || formData.wheels,
+          paintAndBody: savedReport.paint_body_data || formData.paintAndBody,
+          engineTransmission: savedReport.engine_transmission || formData.engineTransmission,
+          suspensionSteering: savedReport.suspension_steering || formData.suspensionSteering,
+          interiors: savedReport.interiors || formData.interiors,
+          batteryAnalysis: savedReport.battery_analysis || formData.batteryAnalysis,
+          otherSpecifications: savedReport.other_specs || formData.otherSpecifications,
+          diagnosticReport: savedReport.diagnostic_report || formData.diagnosticReport,
+        },
+      },
+    });
+  }, 1500);
+}else {
         throw new Error(response.data.error || "Unknown error saving report");
       }
     } catch (error) {
