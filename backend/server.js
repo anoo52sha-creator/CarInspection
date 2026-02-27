@@ -21,7 +21,13 @@ const pool = new Pool({
     rejectUnauthorized: false,
   },
 });
-
+// ✅ ADD THIS HERE AND NOWHERE ELSE
+app.options('*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204);
+});
 // Middleware
 //app.use(cors());
 // ❌ DELETE OLD: app.use(cors());
@@ -426,14 +432,14 @@ app.get('/api/reports', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
+export default app;
 // Uncomment this block ONLY for local development
 // const PORT = process.env.PORT || 5001;
 // app.listen(PORT, () => {
 //   console.log(`Server running on port ${PORT}`);
 // });
 
-export default app;
+
 // import express from 'express';
 // import cors from 'cors';
 // import pg from 'pg';

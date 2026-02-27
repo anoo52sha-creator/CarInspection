@@ -484,7 +484,11 @@ export default function CreateReport() {
       // const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
       //   headers: { "Content-Type": "multipart/form-data" },
       // });
-const response = await axios.post(`${API_URL}/reports`, formDataToSend);
+const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
+  timeout: 25000,
+  maxContentLength: Infinity,
+  maxBodyLength: Infinity
+});
       console.log("Raw response:", response.data);
 
       if (response.data.success) {
