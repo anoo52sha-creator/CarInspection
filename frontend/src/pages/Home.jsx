@@ -42,7 +42,7 @@ export default function Home() {
   const scrollToReviews = () => {
     reviewsRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
+//new
   return (
     <>
      
