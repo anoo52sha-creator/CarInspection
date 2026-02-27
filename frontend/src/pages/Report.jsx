@@ -58,31 +58,31 @@ const StarRatingDisplay = ({ rating }) => (
   </div>
 );
 
-const ImageGrid = ({ images, title = "Images" }) => {
-  if (!images || images.length === 0) {
-    return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
-  }
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-      {images.map((url, idx) => (
-        <div key={idx} className="block">
-          <img
-            src={url}
-            alt={`${title} ${idx + 1}`}
-            className="w-full h-32 object-cover rounded border"
-            onError={(e) => {
-              e.target.src = "/placeholder.png";
-              e.target.className = "w-full h-32 object-contain rounded border bg-gray-100 p-2";
-            }}
-          />
-        </div>
-      ))}
-    </div>
-  );
-};
+// const ImageGrid = ({ images, title = "Images" }) => {
+//   if (!images || images.length === 0) {
+//     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//   }
+//   return (
+//     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+//       {images.map((url, idx) => (
+//         <div key={idx} className="block">
+//           <img
+//             src={url}
+//             alt={`${title} ${idx + 1}`}
+//             className="w-full h-32 object-cover rounded border"
+//             onError={(e) => {
+//               e.target.src = "/placeholder.png";
+//               e.target.className = "w-full h-32 object-contain rounded border bg-gray-100 p-2";
+//             }}
+//           />
+//         </div>
+//       ))}
+//     </div>
+//   );
+// };
 //  --
 
-// ✅ NEW: Image Carousel Component (add this BEFORE the main export)
+// ✅ NEW: Image Carousel Component (paste this anywhere above the export)
 const ImageCarousel = ({ images, title = "Images" }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -101,7 +101,7 @@ const ImageCarousel = ({ images, title = "Images" }) => {
           src={images[currentIndex]} 
           alt={`${title} ${currentIndex + 1}`} 
           className="w-full h-48 object-cover"
-          crossOrigin="anonymous" // ✅ Important for PDF rendering
+          crossOrigin="anonymous" // 👈 Critical for PDF rendering
         />
         
         {images.length > 1 && (
@@ -242,18 +242,20 @@ export default function Report() {
       //   windowWidth: el.scrollWidth,
       //   windowHeight: el.scrollHeight,
       // });
-const canvas = await html2canvas(el, {
-  scale: 2,
-  useCORS: true,          // ✅ Already correct
-  allowTaint: false,      // ✅ ADD THIS (security)
-  backgroundColor: "#FFFFFF",
-  logging: false,
-  windowWidth: el.scrollWidth,
-  windowHeight: el.scrollHeight,
-  // ✅ ADD THESE for better image handling
-  imageTimeout: 30000,    // Wait up to 30s for images
-  removeContainer: true,
-});
+// 👇 THE FIX: Add these TWO lines to html2canvas config
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false, // 👈 ADD THIS (critical for Cloudinary)
+      backgroundColor: "#FFFFFF",
+      logging: false,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+      // 👇 AND THIS (better image handling)
+      imageTimeout: 15000,
+      // Remove container to avoid blank pages
+      removeContainer: true,
+    });
       const imgData = canvas.toDataURL("image/jpeg", 1.0);
 
       const pdf = new jsPDF("p", "mm", "a4");

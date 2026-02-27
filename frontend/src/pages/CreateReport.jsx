@@ -342,7 +342,7 @@ const StatusSelector = ({ value, onChange }) => {
         value={isCustom ? "custom" : (value || "")}
         onChange={(e) => {
           if (e.target.value === "custom") {
-            onChange("CUSTOM: "); // ✅ Set a default custom value
+            onChange(" "); // ✅ Set a default custom value
           } else {
             onChange(e.target.value);
           }
