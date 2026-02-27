@@ -76,18 +76,18 @@ const upload = multer({ storage });
 
 // Multiple file upload middleware
 const multipleUpload = upload.fields([
-  { name: 'vehicleImages', maxCount: 100 },
-  { name: 'paintBodyImages', maxCount: 100 },
-  { name: 'engineImages', maxCount: 100 },
-  { name: 'suspensionImages', maxCount: 100 },
-  { name: 'interiorImages', maxCount: 100 },
-  { name: 'batteryImages', maxCount: 100 },
-  { name: 'specsImages', maxCount: 100 },
-  { name: 'diagnosticPdf', maxCount: 100 },
-  { name: 'tyreImages_frontLhs', maxCount: 100 },
-  { name: 'tyreImages_frontRhs', maxCount: 100 },
-  { name: 'tyreImages_rearLhs', maxCount: 100 },
-  { name: 'tyreImages_rearRhs', maxCount: 100 },
+  { name: 'vehicleImages', maxCount: 20 },
+  { name: 'paintBodyImages', maxCount: 20},
+  { name: 'engineImages', maxCount: 20 },
+  { name: 'suspensionImages', maxCount: 20 },
+  { name: 'interiorImages', maxCount: 20 },
+  { name: 'batteryImages', maxCount: 20 },
+  { name: 'specsImages', maxCount: 20 },
+  { name: 'diagnosticPdf', maxCount: 20 },
+  { name: 'tyreImages_frontLhs', maxCount: 20},
+  { name: 'tyreImages_frontRhs', maxCount: 20 },
+  { name: 'tyreImages_rearLhs', maxCount: 20 },
+  { name: 'tyreImages_rearRhs', maxCount: 20},
 ]);
 
 // Auto create database table on first run
