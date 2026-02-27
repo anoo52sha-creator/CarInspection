@@ -4,7 +4,7 @@ import { Star, Download, Printer, Loader2 } from "lucide-react";
 //NEW
 // const API_URL = "http://localhost:5001/api";
 const API_URL = "https://car-inspection-h7fd.vercel.app/api";
-
+const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 const SectionHeader = ({ title }) => (
   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
     {title}
@@ -39,7 +39,7 @@ const TyreInfo = ({ side, data }) => {
       {images.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
-          <ImageCarousel  images={images} title={`${side} Tyre Images`} />
+          <ImageSlider   images={images} title={`${side} Tyre Images`} />
         </div>
       )}
     </div>
@@ -142,6 +142,104 @@ const ImageCarousel = ({ images, title = "Images" }) => {
     </div>
   );
 };
+// ✅ NEW: Multi-Image Slider (shows 3-4 images at once)
+const ImageSlider = ({ images, title = "Images" }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const itemsPerPage = 3; // Show 3 images at a time
+
+  if (!images || images.length === 0) {
+    return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+  }
+
+  const totalPages = Math.ceil(images.length / itemsPerPage);
+  const visibleImages = images.slice(
+    currentIndex * itemsPerPage,
+    (currentIndex + 1) * itemsPerPage
+  );
+
+  const nextSlide = () => {
+    if (currentIndex < totalPages - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const prevSlide = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
+      <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 p-4">
+        {/* Image Grid */}
+        <div className="grid grid-cols-3 gap-2">
+          {visibleImages.map((url, idx) => (
+            <div key={idx} className="relative">
+              <img
+                src={url}
+                alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
+                className="w-full h-24 object-cover rounded border"
+                crossOrigin="anonymous"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5">
+                {currentIndex * itemsPerPage + idx + 1}/{images.length}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Navigation */}
+        {totalPages > 1 && (
+          <div className="flex justify-between mt-3">
+            <button
+              type="button"
+              onClick={prevSlide}
+              disabled={currentIndex === 0}
+              className={`px-3 py-1 rounded ${
+                currentIndex === 0
+                  ? "bg-gray-300 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              Previous
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentIndex(i)}
+                  className={`w-3 h-3 rounded-full transition-colors ${
+                    i === currentIndex ? "bg-blue-600" : "bg-gray-300"
+                  }`}
+                />
+              ))}
+            </div>
+            
+            <button
+              type="button"
+              onClick={nextSlide}
+              disabled={currentIndex === totalPages - 1}
+              className={`px-3 py-1 rounded ${
+                currentIndex === totalPages - 1
+                  ? "bg-gray-300 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mt-1 text-center">
+        Showing {visibleImages.length} of {images.length} images
+      </p>
+    </div>
+  );
+};
 async function waitForImages(rootEl) {
   const imgs = Array.from(rootEl.querySelectorAll("img"));
   await Promise.all(
@@ -219,103 +317,101 @@ export default function Report() {
       return () => clearTimeout(t);
     }
   }, [reportData, state?.autoDownload, downloading, autoDownloadRan]);
+const downloadPDF = async () => {
+  if (!reportRef.current) return;
+  setIsGeneratingPDF(true); // Show loading state
+  
+  try {
+    const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+      import("jspdf"),
+      import("html2canvas"),
+      import("pdf-lib"),
+    ]);
 
-  const downloadPDF = async () => {
-    if (!reportRef.current) return;
-    setDownloading(true);
-
-    try {
-      const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
-        import("jspdf"),
-        import("html2canvas"),
-        import("pdf-lib"),
-      ]);
-
-      const el = reportRef.current;
-      await waitForImages(el);
-
-      // const canvas = await html2canvas(el, {
-      //   scale: 2,
-      //   useCORS: true,
-      //   backgroundColor: "#FFFFFF",
-      //   logging: false,
-      //   windowWidth: el.scrollWidth,
-      //   windowHeight: el.scrollHeight,
-      // });
-// 👇 THE FIX: Add these TWO lines to html2canvas config
+    const el = reportRef.current;
+    
+    // First, make sure all images are loaded
+    await waitForImages(el);
+    
+    // 👇 CRITICAL FIX: Add these options for Cloudinary image rendering
     const canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
-      allowTaint: false, // 👈 ADD THIS (critical for Cloudinary)
+      allowTaint: false,  // Critical for cross-origin images
       backgroundColor: "#FFFFFF",
       logging: false,
       windowWidth: el.scrollWidth,
       windowHeight: el.scrollHeight,
-      // 👇 AND THIS (better image handling)
-      imageTimeout: 15000,
-      // Remove container to avoid blank pages
+      imageTimeout: 30000,  // Wait longer for images
       removeContainer: true,
+      
+      // 👇 NEW: Force images to be loaded with CORS headers
+      onclone: (clonedDoc) => {
+        const images = clonedDoc.querySelectorAll('img');
+        images.forEach(img => {
+          img.crossOrigin = "anonymous";  // This is the key!
+        });
+      }
     });
-      const imgData = canvas.toDataURL("image/jpeg", 1.0);
 
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 1.0);
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+    let heightLeft = imgHeight;
+    let position = 0;
 
+    pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
       heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const reportPdfBytes = pdf.output("arraybuffer");
-
-      const merged = await PDFDocument.create();
-      const reportDoc = await PDFDocument.load(reportPdfBytes);
-      const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
-      reportPages.forEach((p) => merged.addPage(p));
-
-      if (reportData?.diagnosticReport?.pdfFile) {
-        try {
-          const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
-          if (diagRes.ok) {
-            const diagBytes = await diagRes.arrayBuffer();
-            const diagDoc = await PDFDocument.load(diagBytes);
-            const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
-            diagPages.forEach((p) => merged.addPage(p));
-          }
-        } catch (e) {
-          console.warn("Could not merge diagnostic PDF:", e);
-        }
-      }
-
-      const finalBytes = await merged.save();
-      const blob = new Blob([finalBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("PDF error:", err);
-      alert("PDF download failed: " + err.message);
     }
 
-    setDownloading(false);
-  };
+    const reportPdfBytes = pdf.output("arraybuffer");
 
+    const merged = await PDFDocument.create();
+    const reportDoc = await PDFDocument.load(reportPdfBytes);
+    const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+    reportPages.forEach((p) => merged.addPage(p));
+
+    if (reportData?.diagnosticReport?.pdfFile) {
+      try {
+        const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+        if (diagRes.ok) {
+          const diagBytes = await diagRes.arrayBuffer();
+          const diagDoc = await PDFDocument.load(diagBytes);
+          const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+          diagPages.forEach((p) => merged.addPage(p));
+        }
+      } catch (e) {
+        console.warn("Could not merge diagnostic PDF:", e);
+      }
+    }
+
+    const finalBytes = await merged.save();
+    const blob = new Blob([finalBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("PDF error:", err);
+    alert("PDF download failed: " + err.message);
+  }
+
+  setIsGeneratingPDF(false); // Hide loading state
+};
   const printReport = () => window.print();
 
   if (loading) {
@@ -335,14 +431,29 @@ export default function Report() {
         >
           <Printer size={18} /> Print
         </button>
-        <button
+        {/* <button
           onClick={downloadPDF}
-          disabled={downloading}
+         disabled={downloading || isGeneratingPDF}
           className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {downloading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
           {downloading ? "Generating PDF..." : "Download PDF"}
-        </button>
+        </button> */}
+        <button
+  onClick={downloadPDF}
+  disabled={isGeneratingPDF}  // ✅ Use isGeneratingPDF here
+  className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {isGeneratingPDF ? (
+    <>
+      <Loader2 className="animate-spin" size={18} /> Generating PDF...
+    </>
+  ) : (
+    <>
+      <Download size={18} /> Download PDF
+    </>
+  )}
+</button>
       </div>
 
       <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
@@ -422,7 +533,7 @@ export default function Report() {
         {reportData.paintAndBody?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Paint & Body Images (Uploaded)" />
-            <ImageCarousel  images={reportData.paintAndBody.images} title="Paint & Body Images" />
+            <ImageSlider   images={reportData.paintAndBody.images} title="Paint & Body Images" />
           </div>
         )}
 
@@ -443,7 +554,7 @@ export default function Report() {
         {reportData.engineTransmission?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Engine Images (Uploaded)" />
-            <ImageCarousel  images={reportData.engineTransmission.images} title="Engine Images" />
+            <ImageSlider   images={reportData.engineTransmission.images} title="Engine Images" />
           </div>
         )}
 
@@ -458,7 +569,7 @@ export default function Report() {
         {reportData.suspensionSteering?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Suspension Images (Uploaded)" />
-            <ImageCarousel  images={reportData.suspensionSteering.images} title="Suspension Images" />
+            <ImageSlider  arousel  images={reportData.suspensionSteering.images} title="Suspension Images" />
           </div>
         )}
 
@@ -473,7 +584,7 @@ export default function Report() {
         {reportData.interiors?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Interior Images (Uploaded)" />
-            <ImageCarousel  images={reportData.interiors.images} title="Interior Images" />
+            <ImageSlider   images={reportData.interiors.images} title="Interior Images" />
           </div>
         )}
 
@@ -484,7 +595,7 @@ export default function Report() {
         {reportData.batteryAnalysis?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Battery Images (Uploaded)" />
-            <ImageCarousel  images={reportData.batteryAnalysis.images} title="Battery Images" />
+            <ImageSlider   images={reportData.batteryAnalysis.images} title="Battery Images" />
           </div>
         )}
 
@@ -499,7 +610,7 @@ export default function Report() {
         {reportData.otherSpecifications?.images?.length > 0 && (
           <div className="mb-8">
             <SectionHeader title="Other Specs Images (Uploaded)" />
-            <ImageCarousel  images={reportData.otherSpecifications.images} title="Other Specs Images" />
+            <ImageSlider   images={reportData.otherSpecifications.images} title="Other Specs Images" />
           </div>
         )}
 
