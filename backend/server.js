@@ -138,7 +138,7 @@ app.post('/api/reports', (req, res, next) => {
     next();
   })
 }, async (req, res) => {
-  console.log("📥 Received report submission");
+  console.log("📥 Received report submission.");
   console.log("📁 Files received:", req.files ? Object.keys(req.files) : "No files");
   console.log("📝 Body has reportData:", !!req.body.reportData);
 
