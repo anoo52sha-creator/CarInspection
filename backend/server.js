@@ -5,6 +5,8 @@ import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 import dotenv from 'dotenv';
+import { setTimeout } from 'node:timers';
+setTimeout.unref();
 
 dotenv.config();
 const { Pool } =  pg;
@@ -276,11 +278,39 @@ app.post('/api/reports', (req, res, next) => {
     });
   }
 });
-const PORT = process.env.PORT || 5001;
+// GET report by ID
+app.get('/api/reports/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM inspection_reports WHERE report_id = $1',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Report not found' });
+    }
+    res.json({ success: true, report: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
+// Get all reports list
+app.get('/api/reports', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, report_id, customer_name, inspection_date, year_make_model FROM inspection_reports ORDER BY created_at DESC'
+    );
+    res.json({ success: true, reports: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ✅ PORT LISTENER MUST BE LAST
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
-})
+});
 // app.post('/api/reports', multipleUpload, async (req, res) => {
 //   console.log("📥 Received report submission");
 //   console.log("📁 Files received:", req.files ? Object.keys(req.files) : "No files");
@@ -411,33 +441,38 @@ app.listen(PORT, () => {
 // });
 
 // Get Report by ID
-app.get('/api/reports/:id', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM inspection_reports WHERE report_id = $1',
-      [req.params.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Report not found' });
-    }
-    res.json({ success: true, report: result.rows[0] });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// app.get('/api/reports/:id', async (req, res) => {
+//   try {
+//     const result = await pool.query(
+//       'SELECT * FROM inspection_reports WHERE report_id = $1',
+//       [req.params.id]
+//     );
+//     if (result.rows.length === 0) {
+//       return res.status(404).json({ success: false, message: 'Report not found' });
+//     }
+//     res.json({ success: true, report: result.rows[0] });
+//   } catch (error) {
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// });
 
-// Get all reports
-app.get('/api/reports', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, report_id, customer_name, inspection_date, year_make_model FROM inspection_reports ORDER BY created_at DESC'
-    );
-    res.json({ success: true, reports: result.rows });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-export default app;
+// // Get all reports
+// app.get('/api/reports', async (req, res) => {
+//   try {
+//     const result = await pool.query(
+//       'SELECT id, report_id, customer_name, inspection_date, year_make_model FROM inspection_reports ORDER BY created_at DESC'
+//     );
+//     res.json({ success: true, reports: result.rows });
+//   } catch (error) {
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// });
+// const PORT = process.env.PORT || 5001;
+
+// app.listen(PORT, () => {
+//   console.log(`✅ Server running on port ${PORT}`);
+// })
+//export default app;
 
 
 
