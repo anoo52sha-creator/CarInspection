@@ -276,6 +276,11 @@ app.post('/api/reports', (req, res, next) => {
     });
   }
 });
+const PORT = process.env.PORT || 5001;
+
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+})
 // app.post('/api/reports', multipleUpload, async (req, res) => {
 //   console.log("📥 Received report submission");
 //   console.log("📁 Files received:", req.files ? Object.keys(req.files) : "No files");
