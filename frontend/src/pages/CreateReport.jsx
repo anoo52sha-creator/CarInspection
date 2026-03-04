@@ -522,7 +522,7 @@ export default function CreateReport() {
       //   headers: { "Content-Type": "multipart/form-data" },
       // });
 const response = await axios.post(`${API_URL}/reports`, formDataToSend, {
-  timeout: 25000,
+  timeout: 90000,
   maxContentLength: Infinity,
   maxBodyLength: Infinity
 });
@@ -892,7 +892,7 @@ if (response.data.success) {
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-8 py-3 rounded-lg font-bold text-lg flex items-center gap-2 shadow-lg transition-transform hover:scale-105"
             >
               {loading ? <Loader2 className="animate-spin" size={20} /> : null}
-              {loading ? "Processing..." : "Generate & Save Report"}
+              {loading ? "Uploading images, please wait..." : "Generate & Save Report"}
             </button>
           </div>
         </form>
