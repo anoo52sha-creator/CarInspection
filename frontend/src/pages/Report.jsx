@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Star, Download, Printer, Loader2 } from "lucide-react";
 //NEW
 // const API_URL = "http://localhost:5001/api";
-const API_URL = "https://carinspection-1.onrender.com/api/api";
+const API_URL = "https://carinspection-1.onrender.com/";
 //const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 const SectionHeader = ({ title }) => (
   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
