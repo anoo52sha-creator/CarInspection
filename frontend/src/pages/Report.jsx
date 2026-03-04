@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Star, Download, Printer, Loader2 } from "lucide-react";
 //NEW
 // const API_URL = "http://localhost:5001/api";
-const API_URL = "https://car-inspection-h7fd.vercel.app/api";
+const API_URL = "https://carinspection-1.onrender.com/api/api";
 const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 const SectionHeader = ({ title }) => (
   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
@@ -45,7 +45,7 @@ const TyreInfo = ({ side, data }) => {
     </div>
   );
 };
-
+//
 const StarRatingDisplay = ({ rating }) => (
   <div className="flex gap-1 justify-end">
     {[1, 2, 3, 4, 5].map((star) => (
@@ -57,7 +57,7 @@ const StarRatingDisplay = ({ rating }) => (
     ))}
   </div>
 );
-
+//new
 // const ImageGrid = ({ images, title = "Images" }) => {
 //   if (!images || images.length === 0) {
 //     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;

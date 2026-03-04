@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import axios from "axios";
 
 //const API_URL = "http://localhost:5001/api";
-const API_URL = "https://car-inspection-h7fd.vercel.app/api";
+const API_URL = "https://carinspection-1.onrender.com/api/api";
 
 
 const initialState = {
@@ -234,7 +234,7 @@ const TyreImageUpload = ({ label, files, setFiles }) => {
     </div>
   );
 };
-
+//new
 const StarRating = ({ rating, setRating }) => (
   <div className="flex gap-1">
     {[1, 2, 3, 4, 5].map((star) => (
