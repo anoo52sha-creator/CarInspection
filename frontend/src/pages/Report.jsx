@@ -322,13 +322,14 @@ export default function Report() {
         </header>
 
         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ReportRow label="Customer Name" value={reportData.customerName} />
+           {reportData.vehicleSummary?.vehicleRegNo && (
+            <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+          )}
+          {/* <ReportRow label="Customer Name" value={reportData.customerName} /> */}
           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
           <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
-          {reportData.vehicleSummary?.vehicleRegNo && (
-            <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
-          )}
+         
         </div>
 
         {/* <SectionHeader title="Vehicle Summary" />
