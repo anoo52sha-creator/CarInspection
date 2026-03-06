@@ -18,7 +18,6 @@ const ReportRow = ({ label, value }) => (
   </div>
 );
 
-// ✅ UPDATED: Image Slider with crossOrigin for PDF support
 const ImageSlider = ({ images, title = "Images" }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const itemsPerPage = 3;
@@ -178,6 +177,7 @@ export default function Report() {
         setLoading(false);
       });
   }, [id, state?.finalReportData]);
+
 
   const downloadPDF = async () => {
     if (!reportRef.current) return;
