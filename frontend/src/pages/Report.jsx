@@ -1,9 +1,21 @@
 import { useLocation, useParams } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
-import { Star, Download, Printer, Loader2 } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Star, Download, Printer, Loader2, X, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 
-// const API_URL = "http://localhost:5001/api";
 const API_URL = "https://carinspection-1.onrender.com/api";
+
+const DEFECT_TYPES = [
+  { id: 1, label: "FULLY REPAINTED" },
+  { id: 2, label: "PARTIALLY REPAINTED" },
+  { id: 3, label: "SMART REPAIR" },
+  { id: 4, label: "DENTS" },
+  { id: 5, label: "SCRATCHES" },
+  { id: 6, label: "CRACK" },
+  { id: 7, label: "FADED" },
+  { id: 8, label: "CHIP OFF" },
+  { id: 9, label: "MULTIPLE SCRATCHES" },
+  { id: 10, label: "PAINT PEEL OFF" },
+];
 
 const SectionHeader = ({ title }) => (
   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
@@ -18,99 +30,18 @@ const ReportRow = ({ label, value }) => (
   </div>
 );
 
-const ImageSlider = ({ images, title = "Images" }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const itemsPerPage = 3;
-
-  if (!images || images.length === 0) {
-    return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
-  }
-
-  const totalPages = Math.ceil(images.length / itemsPerPage);
-  const visibleImages = images.slice(
-    currentIndex * itemsPerPage,
-    (currentIndex + 1) * itemsPerPage
-  );
-
-  const nextSlide = () => {
-    if (currentIndex < totalPages - 1) setCurrentIndex(currentIndex + 1);
-  };
-
-  const prevSlide = () => {
-    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
-  };
-
-  return (
-    <div className="mt-4">
-      <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
-      <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 p-4">
-        <div className="grid grid-cols-3 gap-2">
-          {visibleImages.map((url, idx) => (
-            <div key={idx} className="relative">
-              {/* ✅ CRITICAL: crossOrigin="anonymous" allows html2canvas to read this image */}
-              <img
-                src={url}
-                alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
-                className="w-full h-24 object-cover rounded border"
-                crossOrigin="anonymous"
-                loading="lazy"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5">
-                {currentIndex * itemsPerPage + idx + 1}/{images.length}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex justify-between mt-3">
-            <button type="button" onClick={prevSlide} disabled={currentIndex === 0} className={`px-3 py-1 rounded ${currentIndex === 0 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Prev</button>
-            <div className="flex items-center gap-1">
-              {[...Array(totalPages)].map((_, i) => (
-                <button key={i} type="button" onClick={() => setCurrentIndex(i)} className={`w-3 h-3 rounded-full ${i === currentIndex ? "bg-blue-600" : "bg-gray-300"}`} />
-              ))}
-            </div>
-            <button type="button" onClick={nextSlide} disabled={currentIndex === totalPages - 1} className={`px-3 py-1 rounded ${currentIndex === totalPages - 1 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Next</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const TyreInfo = ({ side, data }) => {
-  if (!data) return null;
-  const images = data.images || [];
-
-  return (
-    <div className="mb-6 border p-4 rounded bg-slate-50">
-      <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
-      <div>
-        <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
-        <ReportRow label="Year" value={data.year || "N/A"} />
-        <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
-        <ReportRow label="Condition" value={data.condition || "N/A"} />
-        <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
-      </div>
-      {images.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
-          <ImageSlider images={images} title={`${side} Tyre Images`} />
-        </div>
-      )}
-    </div>
-  );
-};
-
 const StarRatingDisplay = ({ rating }) => (
   <div className="flex gap-1 justify-end">
     {[1, 2, 3, 4, 5].map((star) => (
-      <Star key={star} size={16} className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+      <Star
+        key={star}
+        size={16}
+        className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`}
+      />
     ))}
   </div>
 );
 
-// ✅ Robust Image Loader
 async function waitForImages(rootEl) {
   const imgs = Array.from(rootEl.querySelectorAll("img"));
   await Promise.all(
@@ -130,6 +61,39 @@ async function waitForImages(rootEl) {
   );
 }
 
+const nextPaint = () =>
+  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+// ✅ PDF Grid: Shows ALL images at once (used during PDF generation)
+function PdfImageGrid({ images, title, cols = 3 }) {
+  if (!images || images.length === 0) return null;
+  const colsClass = cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-2" : "grid-cols-3";
+
+  return (
+    <div className="mt-4">
+      <label className="text-sm font-bold text-gray-700 mb-2 block uppercase tracking-wide">
+        {title} ({images.length})
+      </label>
+      <div className={`grid ${colsClass} gap-3`}>
+        {images.map((url, i) => (
+          <div key={url + i} className="border rounded bg-white overflow-hidden">
+            <img
+              src={url}
+              alt={`${title} ${i + 1}`}
+              className="w-full h-[200px] object-cover"
+              crossOrigin="anonymous"
+              loading="lazy"
+            />
+            <div className="text-[10px] text-slate-500 px-2 py-1 border-t bg-slate-50">
+              {i + 1}/{images.length}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Report() {
   const { state } = useLocation();
   const { id } = useParams();
@@ -137,7 +101,15 @@ export default function Report() {
   const [reportData, setReportData] = useState(state?.finalReportData || null);
   const [loading, setLoading] = useState(!state?.finalReportData);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Fullscreen viewer (web only)
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  // ✅ PDF MODE flag
+  const [pdfMode, setPdfMode] = useState(false);
+
   const reportRef = useRef(null);
+  const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
     if (!id) {
@@ -159,7 +131,7 @@ export default function Report() {
             yearMakeModel: r.year_make_model,
             vehicleSummary: r.vehicle_data || {},
             wheels: r.wheels_data || {},
-            paintAndBody: r.paint_body_data || { selectedParts: [], notes: "", images: [] },
+            paintAndBody: r.paint_body_data || { selectedDefects: [], notes: "", images: [] },
             engineTransmission: r.engine_transmission || { images: [] },
             suspensionSteering: r.suspension_steering || { images: [] },
             interiors: r.interiors || { images: [] },
@@ -173,52 +145,172 @@ export default function Report() {
       })
       .catch((err) => {
         console.error("Error fetching report:", err);
-        if (state?.finalReportData) setReportData(state.finalReportData);
         setLoading(false);
       });
-  }, [id, state?.finalReportData]);
+  }, [id]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setSelectedImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
-  const downloadPDF = async () => {
+  // ✅ Configurable Image Slider
+  const ImageSlider = ({ 
+    images, 
+    title = "Images", 
+    itemsPerPage = 3, 
+    gridClassName = "grid-cols-1 md:grid-cols-3",
+    imageClassName = "h-64 md:h-80 object-cover",
+    pdfCols = 3 
+  }) => {
+    // If we are generating PDF, show ALL images
+    if (pdfMode) {
+      return <PdfImageGrid images={images} title={title} cols={pdfCols} />;
+    }
+
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    if (!images || images.length === 0) {
+      return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+    }
+
+    const totalPages = Math.ceil(images.length / itemsPerPage);
+    const visibleImages = images.slice(currentIndex * itemsPerPage, (currentIndex + 1) * itemsPerPage);
+
+    return (
+      <div className="mt-4">
+        <label className="text-sm font-bold text-gray-700 mb-2 block uppercase tracking-wide">
+          {title} ({images.length})
+        </label>
+
+        <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+          <div className={`grid gap-4 ${gridClassName}`}>
+            {visibleImages.map((url, idx) => {
+              const absoluteIndex = currentIndex * itemsPerPage + idx;
+              return (
+                <div key={absoluteIndex} className="relative group overflow-hidden rounded-lg shadow-md border-2 border-white bg-white">
+                  <img
+                    src={url}
+                    alt="Gallery"
+                    className={`w-full transition-transform duration-500 group-hover:scale-110 cursor-pointer ${imageClassName}`}
+                    crossOrigin="anonymous"
+                    onClick={() =>
+                      setSelectedImage({
+                        url,
+                        index: absoluteIndex + 1,
+                        total: images.length,
+                      })
+                    }
+                  />
+                  <div
+                    onClick={() =>
+                      setSelectedImage({
+                        url,
+                        index: absoluteIndex + 1,
+                        total: images.length,
+                      })
+                    }
+                    className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                  >
+                    <Maximize2 className="text-white" size={32} />
+                  </div>
+                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded">
+                    {absoluteIndex + 1} / {images.length}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center mt-4">
+              <button
+                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                disabled={currentIndex === 0}
+                className="p-2 rounded-full bg-white border shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-xs font-bold text-slate-500 tracking-widest">
+                PAGE {currentIndex + 1} OF {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentIndex((prev) => Math.min(totalPages - 1, prev + 1))}
+                disabled={currentIndex === totalPages - 1}
+                className="p-2 rounded-full bg-white border shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-colors"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const TyreInfo = ({ side, data }) => {
+    if (!data) return null;
+
+    return (
+      <div className="mb-6 border p-4 rounded bg-slate-50">
+        <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+        <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+        <ReportRow label="Year" value={data.year || "N/A"} />
+        <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+        <ReportRow label="Condition" value={data.condition || "N/A"} />
+        <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+
+        {/* ✅ TYRES: 1 Image per page in UI, but 2 columns in PDF Mode */}
+        {data.images?.length > 0 && (
+          <ImageSlider 
+            images={data.images} 
+            title={`${side} Images`} 
+            itemsPerPage={1} 
+            gridClassName="grid-cols-1" 
+            imageClassName="h-80 md:h-[420px] object-contain"
+            pdfCols={2} 
+          />
+        )}
+      </div>
+    );
+  };
+
+  const printReport = () => window.print();
+
+  const downloadPDF = useCallback(async () => {
     if (!reportRef.current) return;
     setIsGeneratingPDF(true);
 
     try {
-      // 1. Load libraries
+      // 1. Switch UI to "Show All Images" mode
+      setPdfMode(true);
+      setSelectedImage(null);
+
+      // 2. Wait for React to re-render the DOM with all images
+      await nextPaint();
+      await nextPaint();
+
+      // 3. Wait for all images to actually download
+      await waitForImages(reportRef.current);
+
       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
         import("jspdf"),
         import("html2canvas"),
         import("pdf-lib"),
       ]);
 
-      const el = reportRef.current;
-
-      // 2. Wait for all images to load physically in the DOM
-      await waitForImages(el);
-
-      // 3. Capture Canvas with CORS settings
-      const canvas = await html2canvas(el, {
-        useCORS: true,           // ✅ Allow cross-origin images
-        allowTaint: false,       // ✅ Prevent tainted canvas
-        scale: 2,                // ✅ Higher resolution
+      const canvas = await html2canvas(reportRef.current, {
+        useCORS: true,
+        allowTaint: false,
+        scale: 2,
         backgroundColor: "#ffffff",
-        logging: false,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
-        imageTimeout: 30000,
-        // ✅ CRITICAL FIX: Force CORS on the cloned document before rendering
-        onclone: (clonedDoc) => {
-          const images = clonedDoc.querySelectorAll("img");
-          images.forEach((img) => {
-            // Only force CORS on external images (Cloudinary)
-            if (img.src.startsWith("https://")) {
-              img.setAttribute("crossorigin", "anonymous");
-            }
-          });
-        },
+        windowWidth: reportRef.current.scrollWidth,
+        windowHeight: reportRef.current.scrollHeight,
       });
 
-      // 4. Create PDF
       const imgData = canvas.toDataURL("image/jpeg", 1.0);
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -238,10 +330,9 @@ export default function Report() {
         heightLeft -= pageHeight;
       }
 
-      // 5. Merge Diagnostic PDF if exists
+      // Merge Diagnostic PDF
       const merged = await PDFDocument.create();
-      const reportPdfBytes = pdf.output("arraybuffer");
-      const reportDoc = await PDFDocument.load(reportPdfBytes);
+      const reportDoc = await PDFDocument.load(pdf.output("arraybuffer"));
       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
       reportPages.forEach((p) => merged.addPage(p));
 
@@ -255,39 +346,49 @@ export default function Report() {
             diagPages.forEach((p) => merged.addPage(p));
           }
         } catch (e) {
-          console.warn("Could not merge diagnostic PDF:", e);
+          console.warn("Diagnostic PDF merge failed", e);
         }
       }
 
-      // 6. Download
       const finalBytes = await merged.save();
       const blob = new Blob([finalBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+      link.download = `Report-${reportData?.reportId || "Report"}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
     } catch (err) {
-      console.error("PDF error:", err);
-      alert("PDF download failed: " + err.message);
+      console.error("PDF Error:", err);
+      alert("PDF Error: " + err.message);
     } finally {
       setIsGeneratingPDF(false);
+      setPdfMode(false); // ✅ Switch back to Normal Slider UI
     }
-  };
+  }, [reportData]);
 
-  const printReport = () => window.print();
+  useEffect(() => {
+    if (!state?.autoDownload) return;
+    if (loading) return;
+    if (!reportData) return;
+    if (autoDownloadedRef.current) return;
+
+    autoDownloadedRef.current = true;
+    downloadPDF();
+  }, [state?.autoDownload, loading, reportData, downloadPDF]);
 
   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
-  if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT DATA NOT FOUND.</div>;
+  if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT NOT FOUND.</div>;
 
   return (
-    <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900">
+    <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900 relative">
       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
-        <button onClick={printReport} className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700">
+        <button
+          onClick={printReport}
+          className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700"
+        >
           <Printer size={18} /> Print
         </button>
         <button
@@ -300,213 +401,2825 @@ export default function Report() {
         </button>
       </div>
 
-      {/* ✅ Report Content Wrapper */}
-      <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
-        
+      <div ref={reportRef} className="max-w-4xl mx-auto bg-white p-6 md:p-12 text-gray-900 shadow-lg">
         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
           <div className="flex items-center gap-4">
-            {/* Local images don't strictly need crossOrigin, but good practice */}
             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
             <div>
               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Pre Purchase Inspection Report</p>
+              <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">
+                Pre Purchase Inspection Report
+              </p>
             </div>
           </div>
           <div className="mt-4 md:mt-0 text-right">
-            <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">Report ID: {reportData.reportId}</p>
-            <div className="flex items-center gap-2 justify-end">
-              <span className="text-sm font-semibold">Overall Rating:</span>
-              <StarRatingDisplay rating={reportData.overallRating} />
-            </div>
+            <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">
+              Report ID: {reportData.reportId}
+            </p>
+            <StarRatingDisplay rating={reportData.overallRating} />
           </div>
         </header>
 
-        <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-           {reportData.vehicleSummary?.vehicleRegNo && (
-            <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
-          )}
-          {/* <ReportRow label="Customer Name" value={reportData.customerName} /> */}
+        <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-x-8">
+          <ReportRow label="Vehicle Reg No" value={reportData?.vehicleSummary?.vehicleRegNo || "—"} />
           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
-          <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
+          <ReportRow label="Inspection Type" value={reportData.typeOfInspection} />
           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
-         
         </div>
 
-        {/* <SectionHeader title="Vehicle Summary" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
-          {Object.entries(reportData.vehicleSummary || {}).map(([key, value]) => (
-            <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
-          ))}
-        </div> */}
         <SectionHeader title="Vehicle Summary" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 mb-8">
           {Object.entries(reportData.vehicleSummary || {})
-            // 👇 1. FILTER OUT THE IMAGES SO THEY DON'T SHOW AS TEXT
-            .filter(([key]) => key !== "vehicleImages" && key !== "vehicleRegNo") 
-            .map(([key, value]) => (
-              <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
-          ))}
-          
-          {/* Handle Reg No specifically if you want it in the grid, or keep the filter above if you handled it in the header */}
-          {reportData.vehicleSummary?.vehicleRegNo && (
-             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
-          )}
+            .filter(([k]) => !["vehicleImages", "vehicleRegNo"].includes(k))
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k.replace(/([A-Z])/g, " $1")} value={v} />
+            ))}
         </div>
 
-        {/* 👇 2. RENDER THE IMAGES SEPARATELY HERE */}
         {reportData.vehicleSummary?.vehicleImages?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Vehicle Exterior Images" />
-            <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Vehicle Exterior Images" />
-          </div>
+          <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Exterior Overview" />
         )}
-        <SectionHeader title="Wheel and Tyre Condition" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <TyreInfo side="Front LHS" data={reportData.wheels?.frontLhs} />
-          <TyreInfo side="Front RHS" data={reportData.wheels?.frontRhs} />
-          <TyreInfo side="Rear LHS" data={reportData.wheels?.rearLhs} />
-          <TyreInfo side="Rear RHS" data={reportData.wheels?.rearRhs} />
+
+        <SectionHeader title="Wheels & Tyres" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TyreInfo side="Front Left" data={reportData.wheels?.frontLhs} />
+          <TyreInfo side="Front Right" data={reportData.wheels?.frontRhs} />
+          <TyreInfo side="Rear Left" data={reportData.wheels?.rearLhs} />
+          <TyreInfo side="Rear Right" data={reportData.wheels?.rearRhs} />
         </div>
 
-        <SectionHeader title="Paint and Body Appraisal" />
-        <div className="flex flex-col md:flex-row gap-8 items-center border p-6 rounded-lg mb-4">
-          <div className="w-full md:w-1/2 flex justify-center border-r pr-4">
-            <img src="/CarImage.png" alt="Car Diagram" className="max-w-[200px] object-contain" crossOrigin="anonymous" />
-          </div>
-          <div className="w-full md:w-1/2">
-            {reportData.paintAndBody?.selectedParts?.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Selected Defects</p>
-                <div className="bg-slate-50 p-3 rounded">
-                  {reportData.paintAndBody.selectedParts.map((p) => (
-                    <p key={p.id} className="text-sm mb-1">
-                      <span className="font-bold text-red-600">{p.id}. {p.name}</span>: {p.defect}
-                    </p>
-                  ))}
-                </div>
+        <SectionHeader title="Paint & Body Appraisal" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start border p-4 rounded bg-white">
+          <div className="relative border p-2 bg-slate-100">
+            <img
+              src="/CarImage.png"
+              alt="Diagram"
+              className="w-full h-auto object-contain"
+              crossOrigin="anonymous"
+            />
+            {(reportData.paintAndBody?.selectedDefects || []).map((d, i) => (
+              <div
+                key={d.uniqueId || i}
+                style={{
+                  position: "absolute",
+                  left: `${d.x}%`,
+                  top: `${d.y}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+                className="bg-red-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border border-white shadow-md"
+              >
+                {d.defectId}
               </div>
-            )}
-            <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Inspection Notes</p>
-            <p className="text-sm text-gray-800 bg-slate-50 p-3 rounded min-h-[50px]">
-              {reportData.paintAndBody?.notes || "No remarks."}
-            </p>
+            ))}
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-gray-700 mb-2 border-b pb-1">DEFECT LIST</p>
+            <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
+              {(reportData.paintAndBody?.selectedDefects || []).map((d, i) => (
+                <div key={d.uniqueId || i} className="text-xs py-1 border-b last:border-0">
+                  <span className="font-bold text-red-600 mr-2">{d.defectId}.</span>
+                  <span className="font-semibold uppercase">{d.name}</span>: {d.defect}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-3 bg-slate-50 rounded text-xs">
+              <p className="font-bold mb-1">REMARKS:</p>
+              {reportData.paintAndBody?.notes || "No additional remarks."}
+            </div>
           </div>
         </div>
-        
+
         {reportData.paintAndBody?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Paint & Body Images (Uploaded)" />
-            <ImageSlider images={reportData.paintAndBody.images} title="Paint & Body Images" />
-          </div>
+          <ImageSlider images={reportData.paintAndBody.images} title="Body Images" />
         )}
 
-        <SectionHeader title="Engine Transmission Inspection" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-4">
+        <SectionHeader title="Engine & Transmission" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           {Object.entries(reportData.engineTransmission || {})
-            .filter(([k]) => k !== "comments" && k !== "images")
-            .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+            .filter(([k]) => !["images", "comments"].includes(k))
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k} value={v} />
+            ))}
         </div>
-        {reportData.engineTransmission?.comments && (
-          <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-100">
-            <p className="text-sm font-bold text-orange-800">Comments:</p>
-            <p className="text-sm text-gray-800 mt-1">{reportData.engineTransmission.comments}</p>
-          </div>
-        )}
         {reportData.engineTransmission?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Engine Images (Uploaded)" />
-            <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
-          </div>
+          <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
         )}
 
-        <SectionHeader title="Suspension, Steering and Brake Inspection" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+        <SectionHeader title="Suspension" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           {Object.entries(reportData.suspensionSteering || {})
-            .filter(([k]) => k !== "comments" && k !== "images")
-            .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+            .filter(([k]) => !["images", "comments"].includes(k))
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k} value={v} />
+            ))}
         </div>
         {reportData.suspensionSteering?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Suspension Images (Uploaded)" />
-            <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
-          </div>
+          <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
         )}
 
-        <SectionHeader title="Interiors, Electricals and Lightings" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+        <SectionHeader title="Interiors" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           {Object.entries(reportData.interiors || {})
-            .filter(([k]) => k !== "comments" && k !== "images")
-            .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+            .filter(([k]) => !["images", "comments"].includes(k))
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k} value={v} />
+            ))}
         </div>
         {reportData.interiors?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Interior Images (Uploaded)" />
-            <ImageSlider images={reportData.interiors.images} title="Interior Images" />
-          </div>
+          <ImageSlider images={reportData.interiors.images} title="Interior Images" />
         )}
 
-        <SectionHeader title="Battery Analysis" />
-        <div className="w-full md:w-1/2 mb-4">
-          <ReportRow label="Battery Report" value={reportData.batteryAnalysis?.["BATTERY REPORT"]} />
+        <SectionHeader title="Battery" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+          <ReportRow label="BATTERY REPORT" value={reportData.batteryAnalysis?.["BATTERY REPORT"] || "N/A"} />
         </div>
         {reportData.batteryAnalysis?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Battery Images (Uploaded)" />
-            <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
-          </div>
+          <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
         )}
 
         <SectionHeader title="Other Specifications" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           {Object.entries(reportData.otherSpecifications || {})
-            .filter(([k]) => k !== "comments" && k !== "images")
-            .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+            .filter(([k]) => !["images", "comments"].includes(k))
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k} value={v} />
+            ))}
         </div>
         {reportData.otherSpecifications?.images?.length > 0 && (
-          <div className="mb-8">
-            <SectionHeader title="Other Specs Images (Uploaded)" />
-            <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
-          </div>
+          <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
         )}
 
         <SectionHeader title="Diagnostic Report" />
-        <div className="bg-slate-50 p-6 rounded border mb-8">
+        <div className="bg-slate-50 p-6 rounded border border-slate-200">
           {reportData.diagnosticReport?.immediateAttention && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
-              <p className="text-sm font-bold text-red-800 uppercase mb-1">Immediate Attention Required</p>
-              <p className="text-sm text-red-900">{reportData.diagnosticReport.immediateAttention}</p>
+            <div className="mb-4 p-3 bg-red-100 border border-red-200 text-red-800 rounded text-sm">
+              <strong>ATTENTION:</strong> {reportData.diagnosticReport.immediateAttention}
             </div>
           )}
-          <p className="text-sm font-bold text-gray-700 uppercase mb-1 border-b pb-1">Diagnostic Comments</p>
-          <p className="text-sm text-gray-800 mt-2">
+          <p className="text-sm font-bold uppercase mb-2">Diagnostic Comments</p>
+          <p className="text-sm text-gray-700 mb-4">
             {reportData.diagnosticReport?.comments || "No diagnostic comments provided."}
           </p>
+
           {reportData.diagnosticReport?.pdfFile && (
-            <div className="mt-4">
-              <p className="text-sm font-bold text-gray-700 uppercase mb-1">Attached Diagnostic PDF</p>
-              <a href={reportData.diagnosticReport.pdfFile} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
-                View Diagnostic PDF (merged into downloaded PDF)
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-sm font-bold mb-2 uppercase">Attached Diagnostic PDF</p>
+              <a
+                href={reportData.diagnosticReport.pdfFile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-bold underline"
+              >
+                View Diagnostic PDF (Opens in new window)
               </a>
             </div>
           )}
         </div>
 
-        <SectionHeader title="Road Test Remarks" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+        <SectionHeader title="Road Test" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           {Object.entries(reportData.roadTest || {})
             .filter(([k]) => k !== "comments")
-            .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+            .map(([k, v]) => (
+              <ReportRow key={k} label={k} value={v} />
+            ))}
         </div>
 
-        <div className="mt-16 pt-8 border-t-2 border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider gap-2">
-          <p>© {new Date().getFullYear()} Car Check Experts. All rights reserved.</p>
-          <p>Generated on {new Date().toLocaleDateString()}</p>
+        <div className="mt-12 p-6 bg-yellow-50 border-2 border-yellow-100 rounded text-[10px] leading-relaxed text-gray-600">
+          <h4 className="font-bold text-yellow-800 mb-2 text-xs uppercase">⚠️ Disclaimer</h4>
+          <p className="mb-2">
+            <strong>DO NOT EXCLUSIVELY DEPEND ON THIS REPORT.</strong> Inspection covers visible components at
+            the time of inspection only.
+          </p>
+          <p>© {new Date().getFullYear()} CAR CHECK EXPERTS</p>
         </div>
       </div>
+
+      {/* ✅ Fullscreen viewer disabled in pdfMode */}
+      {!pdfMode && selectedImage && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 transition-all duration-300"
+          onClick={() => setSelectedImage(null)}
+        >
+          <button className="absolute top-6 right-6 text-white hover:text-red-500 transition-colors z-[10000]">
+            <X size={48} strokeWidth={3} />
+          </button>
+          <img
+            src={selectedImage.url}
+            className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl animate-in zoom-in duration-300"
+            alt="Enlarged View"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="absolute bottom-10 bg-white/10 backdrop-blur-md px-8 py-3 rounded-full text-white text-xl font-bold border border-white/20">
+            IMAGE {selectedImage.index} OF {selectedImage.total}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
+//////////////////////////////////////////////////
+// import { useLocation, useParams } from "react-router-dom";
+// import { useEffect, useState, useRef } from "react";
+// import { Star, Download, Printer, Loader2, X, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 
+// const API_URL = "https://carinspection-1.onrender.com/api";
+
+// const DEFECT_TYPES = [
+//   { id: 1, label: "FULLY REPAINTED" },
+//   { id: 2, label: "PARTIALLY REPAINTED" },
+//   { id: 3, label: "SMART REPAIR" },
+//   { id: 4, label: "DENTS" },
+//   { id: 5, label: "SCRATCHES" },
+//   { id: 6, label: "CRACK" },
+//   { id: 7, label: "FADED" },
+//   { id: 8, label: "CHIP OFF" },
+//   { id: 9, label: "MULTIPLE SCRATCHES" },
+//   { id: 10, label: "PAINT PEEL OFF" },
+// ];
+
+// const SectionHeader = ({ title }) => (
+//   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
+//     {title}
+//   </h2>
+// );
+
+// const ReportRow = ({ label, value }) => (
+//   <div className="flex justify-between items-center py-2 border-b border-slate-200">
+//     <p className="text-sm font-semibold uppercase text-gray-600 w-1/2">{label}</p>
+//     <p className="text-sm text-gray-800 w-1/2 text-right">{value}</p>
+//   </div>
+// );
+
+// const StarRatingDisplay = ({ rating }) => (
+//   <div className="flex gap-1 justify-end">
+//     {[1, 2, 3, 4, 5].map((star) => (
+//       <Star
+//         key={star}
+//         size={16}
+//         className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`}
+//       />
+//     ))}
+//   </div>
+// );
+// const TyreSingleImageSlider = ({ images, title }) => {
+//   const [index, setIndex] = useState(0);
+
+//   if (!images || images.length === 0) return null;
+
+//   const next = () => {
+//     if (index < images.length - 1) setIndex(index + 1);
+//   };
+
+//   const prev = () => {
+//     if (index > 0) setIndex(index - 1);
+//   };
+
+//   return (
+//     <div className="mt-4">
+//       <p className="text-xs font-bold uppercase text-gray-600 mb-3 tracking-wider">
+//         {title} ({images.length})
+//       </p>
+
+//       <div className="relative bg-white border border-slate-200 rounded-xl shadow-md p-4">
+
+//         {/* ✅ ONE LARGE IMAGE */}
+//         <div className="relative group">
+//           <img
+//             src={images[index]}
+//             alt="Tyre"
+//             className="w-full h-80 md:h-[420px] object-contain rounded-lg cursor-pointer transition-transform duration-300 hover:scale-[1.02]"
+//           />
+
+//           {/* Counter */}
+//           <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-3 py-1 rounded-full">
+//             {index + 1} / {images.length}
+//           </div>
+//         </div>
+
+//         {/* Navigation */}
+//         {images.length > 1 && (
+//           <div className="flex justify-between items-center mt-4">
+//             <button
+//               onClick={prev}
+//               disabled={index === 0}
+//               className="px-4 py-2 bg-slate-100 rounded-full shadow disabled:opacity-30 hover:bg-slate-200 transition"
+//             >
+//               ◀
+//             </button>
+
+//             <span className="text-xs font-bold text-slate-500 tracking-widest">
+//               IMAGE {index + 1} OF {images.length}
+//             </span>
+
+//             <button
+//               onClick={next}
+//               disabled={index === images.length - 1}
+//               className="px-4 py-2 bg-slate-100 rounded-full shadow disabled:opacity-30 hover:bg-slate-200 transition"
+//             >
+//               ▶
+//             </button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+// export default function Report() {
+//   const { state } = useLocation();
+//   const { id } = useParams();
+
+//   const [reportData, setReportData] = useState(state?.finalReportData || null);
+//   const [loading, setLoading] = useState(!state?.finalReportData);
+//   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  
+//   // 👇 STATE FOR FULLSCREEN VIEWER
+//   const [selectedImage, setSelectedImage] = useState(null);
+  
+//   const reportRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!id) {
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     fetch(`${API_URL}/reports/${id}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         if (data.success) {
+//           const r = data.report;
+//           setReportData({
+//             reportId: r.report_id,
+//             customerName: r.customer_name,
+//             overallRating: r.overall_rating,
+//             date: r.inspection_date,
+//             typeOfInspection: r.inspection_type,
+//             yearMakeModel: r.year_make_model,
+//             vehicleSummary: r.vehicle_data || {},
+//             wheels: r.wheels_data || {},
+//             paintAndBody: r.paint_body_data || { selectedDefects: [], notes: "", images: [] },
+//             engineTransmission: r.engine_transmission || { images: [] },
+//             suspensionSteering: r.suspension_steering || { images: [] },
+//             interiors: r.interiors || { images: [] },
+//             batteryAnalysis: r.battery_analysis || { images: [] },
+//             otherSpecifications: r.other_specs || { images: [] },
+//             diagnosticReport: r.diagnostic_report || {},
+//             roadTest: r.road_test || {},
+//           });
+//         }
+//         setLoading(false);
+//       })
+//       .catch((err) => {
+//         console.error("Error fetching report:", err);
+//         setLoading(false);
+//       });
+//   }, [id]);
+
+//   // 👇 ESC KEY LISTENER FOR MODAL
+//   useEffect(() => {
+//     const handleKeyDown = (e) => {
+//       if (e.key === 'Escape') setSelectedImage(null);
+//     };
+//     window.addEventListener('keydown', handleKeyDown);
+//     return () => window.removeEventListener('keydown', handleKeyDown);
+//   }, []);
+
+//   const ImageSlider = ({ images, title = "Images" }) => {
+//     const [currentIndex, setCurrentIndex] = useState(0);
+//     const itemsPerPage = 3;
+
+//     if (!images || images.length === 0) {
+//       return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//     }
+
+//     const totalPages = Math.ceil(images.length / itemsPerPage);
+//     const visibleImages = images.slice(currentIndex * itemsPerPage, (currentIndex + 1) * itemsPerPage);
+
+//     return (
+//       <div className="mt-4">
+//         <label className="text-sm font-bold text-gray-700 mb-2 block uppercase tracking-wide">
+//           {title} ({images.length})
+//         </label>
+//         <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+//           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+//             {visibleImages.map((url, idx) => (
+//               <div key={idx} className="relative group overflow-hidden rounded-lg shadow-md border-2 border-white">
+//                 <img
+//                   src={url}
+//                   alt="Gallery"
+//                   className="w-full h-64 md:h-80 object-cover transition-transform duration-500 group-hover:scale-110 cursor-pointer"
+//                   crossOrigin="anonymous"
+//                   onClick={() => setSelectedImage({ url, index: (currentIndex * itemsPerPage) + idx + 1, total: images.length })}
+//                 />
+//                 {/* Expand Icon Hint */}
+//                 <div 
+//                    onClick={() => setSelectedImage({ url, index: (currentIndex * itemsPerPage) + idx + 1, total: images.length })}
+//                    className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+//                 >
+//                     <Maximize2 className="text-white" size={32} />
+//                 </div>
+//                 <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded">
+//                   {(currentIndex * itemsPerPage) + idx + 1} / {images.length}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+
+//           {totalPages > 1 && (
+//             <div className="flex justify-between items-center mt-4">
+//               <button 
+//                 onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+//                 disabled={currentIndex === 0}
+//                 className="p-2 rounded-full bg-white border shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-colors"
+//               >
+//                 <ChevronLeft size={20} />
+//               </button>
+//               <span className="text-xs font-bold text-slate-500 tracking-widest">PAGE {currentIndex + 1} OF {totalPages}</span>
+//               <button 
+//                 onClick={() => setCurrentIndex(prev => Math.min(totalPages - 1, prev + 1))}
+//                 disabled={currentIndex === totalPages - 1}
+//                 className="p-2 rounded-full bg-white border shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-colors"
+//               >
+//                 <ChevronRight size={20} />
+//               </button>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+//     );
+//   };
+
+//   const TyreInfo = ({ side, data }) => {
+//     if (!data) return null;
+//     return (
+//       <div className="mb-6 border p-4 rounded bg-slate-50">
+//         <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+//         <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+//         <ReportRow label="Year" value={data.year || "N/A"} />
+//         <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+//         <ReportRow label="Condition" value={data.condition || "N/A"} />
+//         <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+//         {data.images?.length > 0 && (
+//   <TyreSingleImageSlider images={data.images} title={`${side} Images`} />
+// )}
+//       </div>
+//     );
+//   };
+
+//   const printReport = () => window.print();
+
+//   const downloadPDF = async () => {
+//     if (!reportRef.current) return;
+//     setIsGeneratingPDF(true);
+//     try {
+//       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+//         import("jspdf"),
+//         import("html2canvas"),
+//         import("pdf-lib"),
+//       ]);
+
+//       const canvas = await html2canvas(reportRef.current, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
+//       const imgData = canvas.toDataURL("image/jpeg", 1.0);
+//       const pdf = new jsPDF("p", "mm", "a4");
+//       const pdfWidth = pdf.internal.pageSize.getWidth();
+//       const pageHeight = pdf.internal.pageSize.getHeight();
+//       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+//       let heightLeft = imgHeight;
+//       let position = 0;
+//       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//       heightLeft -= pageHeight;
+//       while (heightLeft > 0) {
+//         position = heightLeft - imgHeight;
+//         pdf.addPage();
+//         pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//         heightLeft -= pageHeight;
+//       }
+
+//       const merged = await PDFDocument.create();
+//       const reportDoc = await PDFDocument.load(pdf.output("arraybuffer"));
+//       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+//       reportPages.forEach(p => merged.addPage(p));
+
+//       if (reportData?.diagnosticReport?.pdfFile) {
+//         try {
+//           const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+//           const diagBytes = await diagRes.arrayBuffer();
+//           const diagDoc = await PDFDocument.load(diagBytes);
+//           const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+//           diagPages.forEach(p => merged.addPage(p));
+//         } catch (e) { console.warn("Diagnostic PDF merge failed", e); }
+//       }
+
+//       const finalBytes = await merged.save();
+//       const blob = new Blob([finalBytes], { type: "application/pdf" });
+//       const url = URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `Report-${reportData.reportId}.pdf`;
+//       link.click();
+//     } catch (err) {
+//       alert("PDF Error: " + err.message);
+//     } finally {
+//       setIsGeneratingPDF(false);
+//     }
+//   };
+
+//   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
+//   if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT NOT FOUND.</div>;
+
+//   return (
+//     <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900 relative">
+//       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
+//         <button onClick={printReport} className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700">
+//           <Printer size={18} /> Print
+//         </button>
+//         <button onClick={downloadPDF} disabled={isGeneratingPDF} className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50" >
+//           {isGeneratingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+//           {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+//         </button>
+//       </div>
+
+//       <div ref={reportRef} className="max-w-4xl mx-auto bg-white p-6 md:p-12 text-gray-900 shadow-lg">
+//         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
+//           <div className="flex items-center gap-4">
+//             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+//             <div>
+//               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
+//               <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Pre Purchase Inspection Report</p>
+//             </div>
+//           </div>
+//           <div className="mt-4 md:mt-0 text-right">
+//             <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">Report ID: {reportData.reportId}</p>
+//             <StarRatingDisplay rating={reportData.overallRating} />
+//           </div>
+//         </header>
+
+//         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-x-8">
+//              {reportData.vehicleSummary?.vehicleRegNo && <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />}
+//             <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
+//             <ReportRow label="Inspection Type" value={reportData.typeOfInspection} />
+//             <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
+           
+//         </div>
+
+//         <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {})
+//             .filter(([k]) => !["vehicleImages", "vehicleRegNo"].includes(k))
+//             .map(([k, v]) => <ReportRow key={k} label={k.replace(/([A-Z])/g, " $1")} value={v} />)}
+//         </div>
+//         {reportData.vehicleSummary?.vehicleImages?.length > 0 && <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Exterior Overview" />}
+
+//         <SectionHeader title="Wheels & Tyres" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+//           <TyreInfo side="Front Left" data={reportData.wheels?.frontLhs} />
+//           <TyreInfo side="Front Right" data={reportData.wheels?.frontRhs} />
+//           <TyreInfo side="Rear Left" data={reportData.wheels?.rearLhs} />
+//           <TyreInfo side="Rear Right" data={reportData.wheels?.rearRhs} />
+//         </div>
+
+//         <SectionHeader title="Paint & Body Appraisal" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start border p-4 rounded bg-white">
+//             <div className="relative border p-2 bg-slate-100">
+//                 <img src="/CarImage.png" alt="Diagram" className="w-full h-auto object-contain" crossOrigin="anonymous" />
+//                 {(reportData.paintAndBody?.selectedDefects || []).map((d, i) => (
+//                     <div key={i} style={{ position: 'absolute', left: `${d.x}%`, top: `${d.y}%`, transform: 'translate(-50%, -50%)' }} className="bg-red-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border border-white shadow-md">
+//                         {d.defectId}
+//                     </div>
+//                 ))}
+//             </div>
+//             <div>
+//                 <p className="text-sm font-bold text-gray-700 mb-2 border-b pb-1">DEFECT LIST</p>
+//                 <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
+//                     {(reportData.paintAndBody?.selectedDefects || []).map((d, i) => (
+//                         <div key={i} className="text-xs py-1 border-b last:border-0">
+//                            <span className="font-bold text-red-600 mr-2">{d.defectId}.</span> 
+//                            <span className="font-semibold uppercase">{d.name}</span>: {d.defect}
+//                         </div>
+//                     ))}
+//                 </div>
+//                 <div className="mt-4 p-3 bg-slate-50 rounded text-xs">
+//                     <p className="font-bold mb-1">REMARKS:</p>
+//                     {reportData.paintAndBody?.notes || "No additional remarks."}
+//                 </div>
+//             </div>
+//         </div>
+//         {reportData.paintAndBody?.images?.length > 0 && <ImageSlider images={reportData.paintAndBody.images} title="Body Images" />}
+
+//         {/* Engine, Interior, etc Sections */}
+//         <SectionHeader title="Engine & Transmission" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+//             {Object.entries(reportData.engineTransmission || {}).filter(([k]) => !["images", "comments"].includes(k)).map(([k, v]) => <ReportRow key={k} label={k} value={v} />)}
+//         </div>
+//         {reportData.engineTransmission?.images?.length > 0 && <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />}
+
+//         <SectionHeader title="Diagnostic Report" />
+//         <div className="bg-slate-50 p-6 rounded border border-slate-200">
+//             {reportData.diagnosticReport?.immediateAttention && (
+//                 <div className="mb-4 p-3 bg-red-100 border border-red-200 text-red-800 rounded text-sm">
+//                     <strong>ATTENTION:</strong> {reportData.diagnosticReport.immediateAttention}
+//                 </div>
+//             )}
+//             <p className="text-sm font-bold uppercase mb-2">Diagnostic Comments</p>
+//             <p className="text-sm text-gray-700 mb-4">{reportData.diagnosticReport?.comments || "No diagnostic comments provided."}</p>
+            
+//             {reportData.diagnosticReport?.pdfFile && (
+//                 <div className="mt-4 pt-4 border-t">
+//                     <p className="text-sm font-bold mb-2 uppercase">Attached Diagnostic PDF</p>
+//                     {/* 👇 PDF FIX: Open in raw mode to avoid CORS/Unauthorized blocks */}
+//                     <a 
+//                         href={reportData.diagnosticReport.pdfFile} 
+//                         target="_blank" 
+//                         rel="noopener noreferrer" 
+//                         className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-bold underline"
+//                     >
+//                         View Diagnostic PDF (Opens in new window)
+//                     </a>
+//                 </div>
+//             )}
+//         </div>
+
+//         <SectionHeader title="Road Test" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+//             {Object.entries(reportData.roadTest || {}).filter(([k]) => k !== "comments").map(([k, v]) => <ReportRow key={k} label={k} value={v} />)}
+//         </div>
+
+//         <div className="mt-12 p-6 bg-yellow-50 border-2 border-yellow-100 rounded text-[10px] leading-relaxed text-gray-600">
+//             <h4 className="font-bold text-yellow-800 mb-2 text-xs uppercase">⚠️ Disclaimer</h4>
+//             <p className="mb-2"><strong>DO NOT EXCLUSIVELY DEPEND ON THIS REPORT.</strong> Inspection covers visible components at the time of inspection only.</p>
+//             <p>© {new Date().getFullYear()} CAR CHECK EXPERTS</p>
+//         </div>
+//       </div>
+
+//       {/* 👇 FULLSCREEN MODAL JSX */}
+//       {selectedImage && (
+//         <div 
+//             className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 transition-all duration-300"
+//             onClick={() => setSelectedImage(null)}
+//         >
+//             <button className="absolute top-6 right-6 text-white hover:text-red-500 transition-colors z-[10000]">
+//                 <X size={48} strokeWidth={3} />
+//             </button>
+//             <img 
+//                 src={selectedImage.url} 
+//                 className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl animate-in zoom-in duration-300"
+//                 alt="Enlarged View"
+//                 onClick={(e) => e.stopPropagation()}
+//             />
+//             <div className="absolute bottom-10 bg-white/10 backdrop-blur-md px-8 py-3 rounded-full text-white text-xl font-bold border border-white/20">
+//                 IMAGE {selectedImage.index} OF {selectedImage.total}
+//             </div>
+//         </div>
+//       )}
+//     </section>
+//   );
+// }
+//18-03-26 start
+// import { useLocation, useParams } from "react-router-dom";
+// import { useEffect, useState, useRef } from "react";
+// import { Star, Download, Printer, Loader2 } from "lucide-react";
+
+// const API_URL = "https://carinspection-1.onrender.com/api";
+
+// const DEFECT_TYPES = [
+//   { id: 1, label: "FULLY REPAINTED" },
+//   { id: 2, label: "PARTIALLY REPAINTED" },
+//   { id: 3, label: "SMART REPAIR" },
+//   { id: 4, label: "DENTS" },
+//   { id: 5, label: "SCRATCHES" },
+//   { id: 6, label: "CRACK" },
+//   { id: 7, label: "FADED" },
+//   { id: 8, label: "CHIP OFF" },
+//   { id: 9, label: "MULTIPLE SCRATCHES" },
+//   { id: 10, label: "PAINT PEEL OFF" },
+// ];
+
+// const SectionHeader = ({ title }) => (
+//   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
+//     {title}
+//   </h2>
+// );
+
+// const ReportRow = ({ label, value }) => (
+//   <div className="flex justify-between items-center py-2 border-b border-slate-200">
+//     <p className="text-sm font-semibold uppercase text-gray-600 w-1/2">{label}</p>
+//     <p className="text-sm text-gray-800 w-1/2 text-right">{value}</p>
+//   </div>
+// );
+
+// const ImageSlider = ({ images, title = "Images" }) => {
+//   const [currentIndex, setCurrentIndex] = useState(0);
+//   const itemsPerPage = 3;
+
+//   if (!images || images.length === 0) {
+//     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//   }
+
+//   const totalPages = Math.ceil(images.length / itemsPerPage);
+//   const visibleImages = images.slice(currentIndex * itemsPerPage, (currentIndex + 1) * itemsPerPage);
+
+//   const nextSlide = () => {
+//     if (currentIndex < totalPages - 1) setCurrentIndex(currentIndex + 1);
+//   };
+
+//   const prevSlide = () => {
+//     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+//   };
+
+//   return (
+//     <div className="mt-4">
+//       <label className="text-sm font-bold text-gray-700 mb-4 block uppercase tracking-wide">
+//         {title} ({images.length})
+//       </label>
+//       <div className="relative bg-slate-100 rounded-xl overflow-hidden border-2 border-slate-200 shadow-lg p-6">
+//         {/* 👇 LARGER IMAGE GRID */}
+//         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+//           {visibleImages.map((url, idx) => (
+//             <div key={idx} className="group relative hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden border-4 border-white shadow-lg hover:-translate-y-2">
+//               <img
+//                 src={url}
+//                 alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
+//                 className="w-full h-64 md:h-80 lg:h-96 object-cover hover:scale-105 transition-transform duration-300"
+//                 crossOrigin="anonymous"
+//                 loading="lazy"
+//               />
+//               {/* 👇 LARGER IMAGE NUMBER */}
+//               <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-xl border-4 border-slate-100 text-lg font-bold text-slate-800 z-10 group-hover:bg-blue-600 group-hover:text-white">
+//                 {currentIndex * itemsPerPage + idx + 1}/{images.length}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {totalPages > 1 && (
+//           <div className="flex items-center justify-between mt-8 px-4">
+//             <button
+//               type="button"
+//               onClick={prevSlide}
+//               disabled={currentIndex === 0}
+//               className={`px-6 py-3 rounded-xl font-bold text-lg transition-all duration-300 shadow-lg transform hover:scale-105 ${
+//                 currentIndex === 0 
+//                   ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+//                   : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-2xl"
+//               }`}
+//             >
+//               ← Prev
+//             </button>
+            
+//             <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-md">
+//               {[...Array(totalPages)].map((_, i) => (
+//                 <button
+//                   key={i}
+//                   type="button"
+//                   onClick={() => setCurrentIndex(i)}
+//                   className={`w-4 h-4 md:w-5 md:h-5 rounded-full transition-all duration-300 shadow-sm hover:scale-125 ${
+//                     i === currentIndex ? "bg-blue-600 shadow-lg" : "bg-gray-300 hover:bg-gray-400"
+//                   }`}
+//                 />
+//               ))}
+//               <span className="text-sm font-bold text-slate-700">
+//                 Page {currentIndex + 1} of {totalPages}
+//               </span>
+//             </div>
+            
+//             <button
+//               type="button"
+//               onClick={nextSlide}
+//               disabled={currentIndex === totalPages - 1}
+//               className={`px-6 py-3 rounded-xl font-bold text-lg transition-all duration-300 shadow-lg transform hover:scale-105 ${
+//                 currentIndex === totalPages - 1 
+//                   ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+//                   : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-2xl"
+//               }`}
+//             >
+//               Next →
+//             </button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// const TyreInfo = ({ side, data }) => {
+//   if (!data) return null;
+
+//   return (
+//     <div className="mb-6 border p-4 rounded bg-slate-50">
+//       <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+//       <div>
+//         <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+//         <ReportRow label="Year" value={data.year || "N/A"} />
+//         <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+//         <ReportRow label="Condition" value={data.condition || "N/A"} />
+//         <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+//       </div>
+//     </div>
+//   );
+// };
+
+// const StarRatingDisplay = ({ rating }) => (
+//   <div className="flex gap-1 justify-end">
+//     {[1, 2, 3, 4, 5].map((star) => (
+//       <Star
+//         key={star}
+//         size={16}
+//         className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`}
+//       />
+//     ))}
+//   </div>
+// );
+
+// async function waitForImages(rootEl) {
+//   const imgs = Array.from(rootEl.querySelectorAll("img"));
+//   await Promise.all(
+//     imgs.map(
+//       (img) =>
+//         new Promise((resolve) => {
+//           if (img.complete && img.naturalWidth > 0) return resolve();
+//           const done = () => {
+//             img.removeEventListener("load", done);
+//             img.removeEventListener("error", done);
+//             resolve();
+//           };
+//           img.addEventListener("load", done);
+//           img.addEventListener("error", done);
+//         })
+//     )
+//   );
+// }
+
+// export default function Report() {
+//   const { state } = useLocation();
+//   const { id } = useParams();
+
+//   const [reportData, setReportData] = useState(state?.finalReportData || null);
+//   const [loading, setLoading] = useState(!state?.finalReportData);
+//   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+//   const reportRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!id) {
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     fetch(`${API_URL}/reports/${id}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         if (data.success) {
+//           const r = data.report;
+//           setReportData({
+//             reportId: r.report_id,
+//             customerName: r.customer_name,
+//             overallRating: r.overall_rating,
+//             date: r.inspection_date,
+//             typeOfInspection: r.inspection_type,
+//             yearMakeModel: r.year_make_model,
+//             vehicleSummary: r.vehicle_data || {},
+//             wheels: r.wheels_data || {},
+//             paintAndBody: r.paint_body_data || { selectedDefects: [], selectedParts: [], notes: "", images: [] },
+//             engineTransmission: r.engine_transmission || { images: [] },
+//             suspensionSteering: r.suspension_steering || { images: [] },
+//             interiors: r.interiors || { images: [] },
+//             batteryAnalysis: r.battery_analysis || { images: [] },
+//             otherSpecifications: r.other_specs || { images: [] },
+//             diagnosticReport: r.diagnostic_report || {},
+//             roadTest: r.road_test || {},
+//           });
+//         }
+//         setLoading(false);
+//       })
+//       .catch((err) => {
+//         console.error("Error fetching report:", err);
+//         if (state?.finalReportData) setReportData(state.finalReportData);
+//         setLoading(false);
+//       });
+//   }, [id, state?.finalReportData]);
+
+//   const downloadPDF = async () => {
+//     if (!reportRef.current) return;
+//     setIsGeneratingPDF(true);
+
+//     try {
+//       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+//         import("jspdf"),
+//         import("html2canvas"),
+//         import("pdf-lib"),
+//       ]);
+
+//       const el = reportRef.current;
+//       await waitForImages(el);
+
+//       const canvas = await html2canvas(el, {
+//         useCORS: true,
+//         allowTaint: false,
+//         scale: 2,
+//         backgroundColor: "#ffffff",
+//         logging: false,
+//         windowWidth: el.scrollWidth,
+//         windowHeight: el.scrollHeight,
+//         imageTimeout: 30000,
+//         onclone: (clonedDoc) => {
+//           const images = clonedDoc.querySelectorAll("img");
+//           images.forEach((img) => {
+//             if (img.src.startsWith("https://")) {
+//               img.setAttribute("crossorigin", "anonymous");
+//             }
+//           });
+//         },
+//       });
+
+//       const imgData = canvas.toDataURL("image/jpeg", 1.0);
+//       const pdf = new jsPDF("p", "mm", "a4");
+//       const pdfWidth = pdf.internal.pageSize.getWidth();
+//       const pageHeight = pdf.internal.pageSize.getHeight();
+//       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+//       let heightLeft = imgHeight;
+//       let position = 0;
+
+//       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//       heightLeft -= pageHeight;
+
+//       while (heightLeft > 0) {
+//         position = heightLeft - imgHeight;
+//         pdf.addPage();
+//         pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//         heightLeft -= pageHeight;
+//       }
+
+//       const merged = await PDFDocument.create();
+//       const reportPdfBytes = pdf.output("arraybuffer");
+//       const reportDoc = await PDFDocument.load(reportPdfBytes);
+//       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+//       reportPages.forEach((p) => merged.addPage(p));
+
+//       if (reportData?.diagnosticReport?.pdfFile) {
+//         try {
+//           const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+//           if (diagRes.ok) {
+//             const diagBytes = await diagRes.arrayBuffer();
+//             const diagDoc = await PDFDocument.load(diagBytes);
+//             const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+//             diagPages.forEach((p) => merged.addPage(p));
+//           }
+//         } catch (e) {
+//           console.warn("Could not merge diagnostic PDF:", e);
+//         }
+//       }
+
+//       const finalBytes = await merged.save();
+//       const blob = new Blob([finalBytes], { type: "application/pdf" });
+//       const url = URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//       URL.revokeObjectURL(url);
+//     } catch (err) {
+//       console.error("PDF error:", err);
+//       alert("PDF download failed: " + err.message);
+//     } finally {
+//       setIsGeneratingPDF(false);
+//     }
+//   };
+
+//   const printReport = () => window.print();
+
+//   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
+//   if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT DATA NOT FOUND.</div>;
+
+//   const defects = reportData.paintAndBody?.selectedDefects || reportData.paintAndBody?.selectedParts || [];
+
+//   return (
+//     <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900">
+//       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
+//         <button
+//           onClick={printReport}
+//           className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700"
+//         >
+//           <Printer size={18} /> Print
+//         </button>
+//         <button
+//           onClick={downloadPDF}
+//           disabled={isGeneratingPDF}
+//           className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
+//         >
+//           {isGeneratingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+//           {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+//         </button>
+//       </div>
+
+//       <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
+//         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
+//           <div className="flex items-center gap-4">
+//             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+//             <div>
+//               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
+//               <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">
+//                 Pre Purchase Inspection Report
+//               </p>
+//             </div>
+//           </div>
+//           <div className="mt-4 md:mt-0 text-right">
+//             <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">
+//               Report ID: {reportData.reportId}
+//             </p>
+//             <div className="flex items-center gap-2 justify-end">
+//               <span className="text-sm font-semibold">Overall Rating:</span>
+//               <StarRatingDisplay rating={reportData.overallRating} />
+//             </div>
+//           </div>
+//         </header>
+
+//         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
+//           <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
+//           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
+//         </div>
+
+//         <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {})
+//             .filter(([key]) => key !== "vehicleImages" && key !== "vehicleRegNo")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//             ))}
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//         </div>
+
+//         {reportData.vehicleSummary?.vehicleImages?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Vehicle Exterior Images" />
+//             <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Vehicle Exterior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Wheel and Tyre Condition" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+//           <TyreInfo side="Front LHS" data={reportData.wheels?.frontLhs} />
+//           <TyreInfo side="Front RHS" data={reportData.wheels?.frontRhs} />
+//           <TyreInfo side="Rear LHS" data={reportData.wheels?.rearLhs} />
+//           <TyreInfo side="Rear RHS" data={reportData.wheels?.rearRhs} />
+//         </div>
+
+//         <SectionHeader title="Paint and Body Appraisal" />
+//         <div className="flex flex-col md:flex-row gap-8 items-start border p-6 rounded-lg mb-4">
+//           <div className="relative w-full md:w-1/2 aspect-[9/13] bg-white rounded-lg overflow-hidden border">
+//             <img src="/CarImage.png" alt="Car Diagram" className="w-full h-full object-contain" crossOrigin="anonymous" />
+//             {defects.map((defect) => {
+//               const left = defect.x || 50;
+//               const top = defect.y || 50;
+//               const defectLabel = DEFECT_TYPES.find((d) => d.label === defect.defect)?.id || defect.defectId || "?";
+//               return (
+//                 <div
+//                   key={defect.uniqueId || defect.id || Math.random()}
+//                   style={{
+//                     position: "absolute",
+//                     left: `${left}%`,
+//                     top: `${top}%`,
+//                     transform: "translate(-50%, -50%)",
+//                   }}
+//                   className="bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shadow-md border-2 border-white"
+//                 >
+//                   {defectLabel}
+//                 </div>
+//               );
+//             })}
+//           </div>
+
+//           <div className="w-full md:w-1/2">
+//             {defects.length > 0 && (
+//               <div className="mb-4">
+//                 <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">
+//                   Selected Defects ({defects.length})
+//                 </p>
+//                 <div className="bg-slate-50 p-3 rounded max-h-[300px] overflow-y-auto">
+//                   {defects.map((d) => {
+//                     const defectLabel = DEFECT_TYPES.find((def) => def.label === d.defect)?.id || d.defectId;
+//                     return (
+//                       <div
+//                         key={d.uniqueId || d.id}
+//                         className="flex justify-between items-center text-sm mb-1 border-b border-slate-100 last:border-0 pb-1"
+//                       >
+//                         <span>
+//                           <span className="font-bold text-red-600 mr-2">{defectLabel}.</span>
+//                           <span className="font-semibold">{d.name}</span>: {d.defect}
+//                         </span>
+//                       </div>
+//                     );
+//                   })}
+//                 </div>
+//               </div>
+//             )}
+//             <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Inspection Notes</p>
+//             <p className="text-sm text-gray-800 bg-slate-50 p-3 rounded min-h-[50px]">
+//               {reportData.paintAndBody?.notes || "No remarks."}
+//             </p>
+//           </div>
+//         </div>
+
+//         {reportData.paintAndBody?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Paint & Body Images (Uploaded)" />
+//             <ImageSlider images={reportData.paintAndBody.images} title="Paint & Body Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Engine Transmission Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-4">
+//           {Object.entries(reportData.engineTransmission || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key} value={value} />
+//             ))}
+//         </div>
+//         {reportData.engineTransmission?.comments && (
+//           <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-100">
+//             <p className="text-sm font-bold text-orange-800">Comments:</p>
+//             <p className="text-sm text-gray-800 mt-1">{reportData.engineTransmission.comments}</p>
+//           </div>
+//         )}
+//         {reportData.engineTransmission?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Engine Images (Uploaded)" />
+//             <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Suspension, Steering and Brake Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.suspensionSteering || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key} value={value} />
+//             ))}
+//         </div>
+//         {reportData.suspensionSteering?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Suspension Images (Uploaded)" />
+//             <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Interiors, Electricals and Lightings" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.interiors || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key} value={value} />
+//             ))}
+//         </div>
+//         {reportData.interiors?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Interior Images (Uploaded)" />
+//             <ImageSlider images={reportData.interiors.images} title="Interior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Battery Analysis" />
+//         <div className="w-full md:w-1/2 mb-4">
+//           <ReportRow label="Battery Report" value={reportData.batteryAnalysis?.["BATTERY REPORT"]} />
+//         </div>
+//         {reportData.batteryAnalysis?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Battery Images (Uploaded)" />
+//             <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Other Specifications" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.otherSpecifications || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key} value={value} />
+//             ))}
+//         </div>
+//         {reportData.otherSpecifications?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Other Specs Images (Uploaded)" />
+//             <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Diagnostic Report" />
+//         <div className="bg-slate-50 p-6 rounded border mb-8">
+//           {reportData.diagnosticReport?.immediateAttention && (
+//             <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+//               <p className="text-sm font-bold text-red-800 uppercase mb-1">Immediate Attention Required</p>
+//               <p className="text-sm text-red-900">{reportData.diagnosticReport.immediateAttention}</p>
+//             </div>
+//           )}
+//           <p className="text-sm font-bold text-gray-700 uppercase mb-1 border-b pb-1">Diagnostic Comments</p>
+//           <p className="text-sm text-gray-800 mt-2">
+//             {reportData.diagnosticReport?.comments || "No diagnostic comments provided."}
+//           </p>
+//           {reportData.diagnosticReport?.pdfFile && (
+//             <div className="mt-4">
+//               <p className="text-sm font-bold text-gray-700 uppercase mb-1">Attached Diagnostic PDF</p>
+//               <a
+//                 href={reportData.diagnosticReport.pdfFile}
+//                 target="_blank"
+//                 rel="noreferrer"
+//                 className="text-sm text-blue-600 underline"
+//               >
+//                 View Diagnostic PDF (merged into downloaded PDF)
+//               </a>
+//             </div>
+//           )}
+//         </div>
+
+//         <SectionHeader title="Road Test Remarks" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.roadTest || {})
+//             .filter(([k]) => k !== "comments")
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key} value={value} />
+//             ))}
+//         </div>
+
+//         <div className="mt-8 p-5 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-slate-700 print:bg-yellow-50 print:border-yellow-200">
+//           <h3 className="font-extrabold text-yellow-800 uppercase tracking-wider mb-3 text-sm border-b border-yellow-200 pb-2">
+//             Disclaimer
+//           </h3>
+//           <p className="font-bold text-slate-800 mb-2">DO NOT EXCLUSIVELY DEPEND ON CAR CHECK EXPERTS FOR YOUR CAR PURCHASE DECISION</p>
+//           <p className="mb-2 leading-relaxed">
+//             CAR CHECK EXPERTS can only advise on the condition of the vehicle at the time of the inspection, and this Inspection Report is only current as at the time it is issued.
+//           </p>
+//           <p className="leading-relaxed">
+//             This inspection report provides to assist based on the general conditions and age of the vehicle only, by our inspector's knowledge and experience.
+//           </p>
+//         </div>
+
+//         <div className="mt-16 pt-8 border-t-2 border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider gap-2">
+//           <p>© {new Date().getFullYear()} Car Check Experts. All rights reserved.</p>
+//           <p>Generated on {new Date().toLocaleDateString()}</p>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+//18-03-26 end
+// // Report.jsx
+// import { useLocation, useParams } from "react-router-dom";
+// import { useEffect, useState, useRef } from "react";
+// import { Star, Download, Printer, Loader2 } from "lucide-react";
+
+// const API_URL = "https://carinspection-1.onrender.com/api";
+
+// const SectionHeader = ({ title }) => (
+//   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
+//     {title}
+//   </h2>
+// );
+
+// const ReportRow = ({ label, value }) => (
+//   <div className="flex justify-between items-center py-2 border-b border-slate-200">
+//     <p className="text-sm font-semibold uppercase text-gray-600 w-1/2">{label}</p>
+//     <p className="text-sm text-gray-800 w-1/2 text-right">{value}</p>
+//   </div>
+// );
+
+// const ImageSlider = ({ images, title = "Images" }) => {
+//   const [currentIndex, setCurrentIndex] = useState(0);
+//   const itemsPerPage = 3;
+
+//   if (!images || images.length === 0) {
+//     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//   }
+
+//   const totalPages = Math.ceil(images.length / itemsPerPage);
+//   const visibleImages = images.slice(
+//     currentIndex * itemsPerPage,
+//     (currentIndex + 1) * itemsPerPage
+//   );
+
+//   const nextSlide = () => {
+//     if (currentIndex < totalPages - 1) setCurrentIndex(currentIndex + 1);
+//   };
+
+//   const prevSlide = () => {
+//     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+//   };
+
+//   return (
+//     <div className="mt-4">
+//       <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
+//       <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 p-4">
+//         <div className="grid grid-cols-3 gap-2">
+//           {visibleImages.map((url, idx) => (
+//             <div key={idx} className="relative">
+//               <img
+//                 src={url}
+//                 alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
+//                 className="w-full h-24 object-cover rounded border"
+//                 crossOrigin="anonymous"
+//                 loading="lazy"
+//               />
+//               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5">
+//                 {currentIndex * itemsPerPage + idx + 1}/{images.length}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {totalPages > 1 && (
+//           <div className="flex justify-between mt-3">
+//             <button type="button" onClick={prevSlide} disabled={currentIndex === 0} className={`px-3 py-1 rounded ${currentIndex === 0 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Prev</button>
+//             <div className="flex items-center gap-1">
+//               {[...Array(totalPages)].map((_, i) => (
+//                 <button key={i} type="button" onClick={() => setCurrentIndex(i)} className={`w-3 h-3 rounded-full ${i === currentIndex ? "bg-blue-600" : "bg-gray-300"}`} />
+//               ))}
+//             </div>
+//             <button type="button" onClick={nextSlide} disabled={currentIndex === totalPages - 1} className={`px-3 py-1 rounded ${currentIndex === totalPages - 1 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Next</button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// const TyreInfo = ({ side, data }) => {
+//   if (!data) return null;
+//   const images = data.images || [];
+
+//   return (
+//     <div className="mb-6 border p-4 rounded bg-slate-50">
+//       <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+//       <div>
+//         <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+//         <ReportRow label="Year" value={data.year || "N/A"} />
+//         <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+//         <ReportRow label="Condition" value={data.condition || "N/A"} />
+//         <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+//       </div>
+//       {images.length > 0 && (
+//         <div className="mt-4 pt-4 border-t border-gray-200">
+//           <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
+//           <ImageSlider images={images} title={`${side} Tyre Images`} />
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// const StarRatingDisplay = ({ rating }) => (
+//   <div className="flex gap-1 justify-end">
+//     {[1, 2, 3, 4, 5].map((star) => (
+//       <Star key={star} size={16} className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+//     ))}
+//   </div>
+// );
+
+// async function waitForImages(rootEl) {
+//   const imgs = Array.from(rootEl.querySelectorAll("img"));
+//   await Promise.all(
+//     imgs.map(
+//       (img) =>
+//         new Promise((resolve) => {
+//           if (img.complete && img.naturalWidth > 0) return resolve();
+//           const done = () => {
+//             img.removeEventListener("load", done);
+//             img.removeEventListener("error", done);
+//             resolve();
+//           };
+//           img.addEventListener("load", done);
+//           img.addEventListener("error", done);
+//         })
+//     )
+//   );
+// }
+
+// export default function Report() {
+//   const { state } = useLocation();
+//   const { id } = useParams();
+
+//   const [reportData, setReportData] = useState(state?.finalReportData || null);
+//   const [loading, setLoading] = useState(!state?.finalReportData);
+//   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+//   const reportRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!id) {
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     fetch(`${API_URL}/reports/${id}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         if (data.success) {
+//           const r = data.report;
+//           setReportData({
+//             reportId: r.report_id,
+//             customerName: r.customer_name,
+//             overallRating: r.overall_rating,
+//             date: r.inspection_date,
+//             typeOfInspection: r.inspection_type,
+//             yearMakeModel: r.year_make_model,
+//             vehicleSummary: r.vehicle_data || {},
+//             wheels: r.wheels_data || {},
+//             paintAndBody: r.paint_body_data || { selectedDefects: [], selectedParts: [], notes: "", images: [] },
+//             engineTransmission: r.engine_transmission || { images: [] },
+//             suspensionSteering: r.suspension_steering || { images: [] },
+//             interiors: r.interiors || { images: [] },
+//             batteryAnalysis: r.battery_analysis || { images: [] },
+//             otherSpecifications: r.other_specs || { images: [] },
+//             diagnosticReport: r.diagnostic_report || {},
+//             roadTest: r.road_test || {},
+//           });
+//         }
+//         setLoading(false);
+//       })
+//       .catch((err) => {
+//         console.error("Error fetching report:", err);
+//         if (state?.finalReportData) setReportData(state.finalReportData);
+//         setLoading(false);
+//       });
+//   }, [id, state?.finalReportData]);
+
+//   const downloadPDF = async () => {
+//     if (!reportRef.current) return;
+//     setIsGeneratingPDF(true);
+
+//     try {
+//       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+//         import("jspdf"),
+//         import("html2canvas"),
+//         import("pdf-lib"),
+//       ]);
+
+//       const el = reportRef.current;
+//       await waitForImages(el);
+
+//       const canvas = await html2canvas(el, {
+//         useCORS: true,
+//         allowTaint: false,
+//         scale: 2,
+//         backgroundColor: "#ffffff",
+//         logging: false,
+//         windowWidth: el.scrollWidth,
+//         windowHeight: el.scrollHeight,
+//         imageTimeout: 30000,
+//         onclone: (clonedDoc) => {
+//           const images = clonedDoc.querySelectorAll("img");
+//           images.forEach((img) => {
+//             if (img.src.startsWith("https://")) {
+//               img.setAttribute("crossorigin", "anonymous");
+//             }
+//           });
+//         },
+//       });
+
+//       const imgData = canvas.toDataURL("image/jpeg", 1.0);
+//       const pdf = new jsPDF("p", "mm", "a4");
+//       const pdfWidth = pdf.internal.pageSize.getWidth();
+//       const pageHeight = pdf.internal.pageSize.getHeight();
+//       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+//       let heightLeft = imgHeight;
+//       let position = 0;
+
+//       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//       heightLeft -= pageHeight;
+
+//       while (heightLeft > 0) {
+//         position = heightLeft - imgHeight;
+//         pdf.addPage();
+//         pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//         heightLeft -= pageHeight;
+//       }
+
+//       const merged = await PDFDocument.create();
+//       const reportPdfBytes = pdf.output("arraybuffer");
+//       const reportDoc = await PDFDocument.load(reportPdfBytes);
+//       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+//       reportPages.forEach((p) => merged.addPage(p));
+
+//       if (reportData?.diagnosticReport?.pdfFile) {
+//         try {
+//           const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+//           if (diagRes.ok) {
+//             const diagBytes = await diagRes.arrayBuffer();
+//             const diagDoc = await PDFDocument.load(diagBytes);
+//             const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+//             diagPages.forEach((p) => merged.addPage(p));
+//           }
+//         } catch (e) {
+//           console.warn("Could not merge diagnostic PDF:", e);
+//         }
+//       }
+
+//       const finalBytes = await merged.save();
+//       const blob = new Blob([finalBytes], { type: "application/pdf" });
+//       const url = URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//       URL.revokeObjectURL(url);
+
+//     } catch (err) {
+//       console.error("PDF error:", err);
+//       alert("PDF download failed: " + err.message);
+//     } finally {
+//       setIsGeneratingPDF(false);
+//     }
+//   };
+
+//   const printReport = () => window.print();
+
+//   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
+//   if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT DATA NOT FOUND.</div>;
+
+//   const defects = reportData.paintAndBody?.selectedDefects || reportData.paintAndBody?.selectedParts || [];
+
+//   return (
+//     <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900">
+//       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
+//         <button onClick={printReport} className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700">
+//           <Printer size={18} /> Print
+//         </button>
+//         <button
+//           onClick={downloadPDF}
+//           disabled={isGeneratingPDF}
+//           className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
+//         >
+//           {isGeneratingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+//           {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+//         </button>
+//       </div>
+
+//       <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
+        
+//         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
+//           <div className="flex items-center gap-4">
+//             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+//             <div>
+//               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
+//               <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Pre Purchase Inspection Report</p>
+//             </div>
+//           </div>
+//           <div className="mt-4 md:mt-0 text-right">
+//             <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">Report ID: {reportData.reportId}</p>
+//             <div className="flex items-center gap-2 justify-end">
+//               <span className="text-sm font-semibold">Overall Rating:</span>
+//               <StarRatingDisplay rating={reportData.overallRating} />
+//             </div>
+//           </div>
+//         </header>
+
+//         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
+//           <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
+//           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
+//         </div>
+
+//         <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {})
+//             .filter(([key]) => key !== "vehicleImages" && key !== "vehicleRegNo") 
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//           ))}
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//              <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//         </div>
+
+//         {reportData.vehicleSummary?.vehicleImages?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Vehicle Exterior Images" />
+//             <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Vehicle Exterior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Wheel and Tyre Condition" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+//           <TyreInfo side="Front LHS" data={reportData.wheels?.frontLhs} />
+//           <TyreInfo side="Front RHS" data={reportData.wheels?.frontRhs} />
+//           <TyreInfo side="Rear LHS" data={reportData.wheels?.rearLhs} />
+//           <TyreInfo side="Rear RHS" data={reportData.wheels?.rearRhs} />
+//         </div>
+
+//         <SectionHeader title="Paint and Body Appraisal" />
+//         <div className="flex flex-col md:flex-row gap-8 items-start border p-6 rounded-lg mb-4">
+//           <div className="relative w-full md:w-1/2 aspect-[9/13] bg-white rounded-lg overflow-hidden border">
+//             <img src="/CarImage.png" alt="Car Diagram" className="w-full h-full object-contain" crossOrigin="anonymous" />
+//             {defects.map((defect) => {
+//               const left = defect.x || 50;
+//               const top = defect.y || 50;
+//               return (
+//                 <div
+//                   key={defect.uniqueId || defect.id || Math.random()}
+//                   style={{
+//                     position: "absolute",
+//                     left: `${left}%`,
+//                     top: `${top}%`,
+//                     transform: "translate(-50%, -50%)",
+//                   }}
+//                   className="bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shadow-md border-2 border-white"
+//                 >
+//                   {defect.defectId || DEFECT_TYPES.find(d => d.label === defect.defect)?.id || "?"}
+//                 </div>
+//               );
+//             })}
+//           </div>
+          
+//           <div className="w-full md:w-1/2">
+//             {defects.length > 0 && (
+//               <div className="mb-4">
+//                 <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Selected Defects ({defects.length})</p>
+//                 <div className="bg-slate-50 p-3 rounded max-h-[300px] overflow-y-auto">
+//                   {defects.map((d) => (
+//                     <div key={d.uniqueId || d.id} className="flex justify-between items-center text-sm mb-1 border-b border-slate-100 last:border-0 pb-1">
+//                       <span>
+//                         <span className="font-bold text-red-600 mr-2">
+//                           {d.defectId || DEFECT_TYPES.find(dt => dt.label === d.defect)?.id}.
+//                         </span>
+//                         <span className="font-semibold">{d.name}</span>: {d.defect}
+//                       </span>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             )}
+//             <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Inspection Notes</p>
+//             <p className="text-sm text-gray-800 bg-slate-50 p-3 rounded min-h-[50px]">
+//               {reportData.paintAndBody?.notes || "No remarks."}
+//             </p>
+//           </div>
+//         </div>
+        
+//         {reportData.paintAndBody?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Paint & Body Images (Uploaded)" />
+//             <ImageSlider images={reportData.paintAndBody.images} title="Paint & Body Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Engine Transmission Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-4">
+//           {Object.entries(reportData.engineTransmission || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.engineTransmission?.comments && (
+//           <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-100">
+//             <p className="text-sm font-bold text-orange-800">Comments:</p>
+//             <p className="text-sm text-gray-800 mt-1">{reportData.engineTransmission.comments}</p>
+//           </div>
+//         )}
+//         {reportData.engineTransmission?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Engine Images (Uploaded)" />
+//             <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Suspension, Steering and Brake Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.suspensionSteering || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.suspensionSteering?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Suspension Images (Uploaded)" />
+//             <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Interiors, Electricals and Lightings" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.interiors || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.interiors?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Interior Images (Uploaded)" />
+//             <ImageSlider images={reportData.interiors.images} title="Interior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Battery Analysis" />
+//         <div className="w-full md:w-1/2 mb-4">
+//           <ReportRow label="Battery Report" value={reportData.batteryAnalysis?.["BATTERY REPORT"]} />
+//         </div>
+//         {reportData.batteryAnalysis?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Battery Images (Uploaded)" />
+//             <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Other Specifications" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.otherSpecifications || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.otherSpecifications?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Other Specs Images (Uploaded)" />
+//             <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Diagnostic Report" />
+//         <div className="bg-slate-50 p-6 rounded border mb-8">
+//           {reportData.diagnosticReport?.immediateAttention && (
+//             <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+//               <p className="text-sm font-bold text-red-800 uppercase mb-1">Immediate Attention Required</p>
+//               <p className="text-sm text-red-900">{reportData.diagnosticReport.immediateAttention}</p>
+//             </div>
+//           )}
+//           <p className="text-sm font-bold text-gray-700 uppercase mb-1 border-b pb-1">Diagnostic Comments</p>
+//           <p className="text-sm text-gray-800 mt-2">
+//             {reportData.diagnosticReport?.comments || "No diagnostic comments provided."}
+//           </p>
+//           {reportData.diagnosticReport?.pdfFile && (
+//             <div className="mt-4">
+//               <p className="text-sm font-bold text-gray-700 uppercase mb-1">Attached Diagnostic PDF</p>
+//               <a href={reportData.diagnosticReport.pdfFile} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+//                 View Diagnostic PDF (merged into downloaded PDF)
+//               </a>
+//             </div>
+//           )}
+//         </div>
+
+//         <SectionHeader title="Road Test Remarks" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.roadTest || {})
+//             .filter(([k]) => k !== "comments")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+
+//         {/* 👇 DISCLAIMER SECTION ADDED HERE */}
+//         <div className="mt-8 p-5 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-slate-700 print:bg-yellow-50 print:border-yellow-200">
+//           <h3 className="font-extrabold text-yellow-800 uppercase tracking-wider mb-3 text-sm border-b border-yellow-200 pb-2">
+//             ⚠️ Disclaimer
+//           </h3>
+//           <p className="font-bold text-slate-800 mb-2">
+//             DO NOT EXCLUSIVELY DEPEND ON CAR CHECK EXPERTS FOR YOUR CAR PURCHASE DECISION
+//           </p>
+//           <p className="mb-2 leading-relaxed">
+//             CAR CHECK EXPERTS can only advise on the condition of the vehicle at the time of the inspection, and this Inspection Report is only current as at the time it is issued.
+//           </p>
+//           <p className="leading-relaxed">
+//             This inspection report provides to assist based on the general conditions and age of the vehicle only, by our inspector's knowledge and experience.
+//           </p>
+//         </div>
+
+//         <div className="mt-16 pt-8 border-t-2 border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider gap-2">
+//           <p>© {new Date().getFullYear()} Car Check Experts. All rights reserved.</p>
+//           <p>Generated on {new Date().toLocaleDateString()}</p>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+//Start 13-03-26
+// import { useLocation, useParams } from "react-router-dom";
+// import { useEffect, useState, useRef } from "react";
+// import { Star, Download, Printer, Loader2 } from "lucide-react";
+
+// // const API_URL = "http://localhost:5001/api";
+// const API_URL = "https://carinspection-1.onrender.com/api";
+
+// const SectionHeader = ({ title }) => (
+//   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
+//     {title}
+//   </h2>
+// );
+
+// const ReportRow = ({ label, value }) => (
+//   <div className="flex justify-between items-center py-2 border-b border-slate-200">
+//     <p className="text-sm font-semibold uppercase text-gray-600 w-1/2">{label}</p>
+//     <p className="text-sm text-gray-800 w-1/2 text-right">{value}</p>
+//   </div>
+// );
+
+// const ImageSlider = ({ images, title = "Images" }) => {
+//   const [currentIndex, setCurrentIndex] = useState(0);
+//   const itemsPerPage = 3;
+
+//   if (!images || images.length === 0) {
+//     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//   }
+
+//   const totalPages = Math.ceil(images.length / itemsPerPage);
+//   const visibleImages = images.slice(
+//     currentIndex * itemsPerPage,
+//     (currentIndex + 1) * itemsPerPage
+//   );
+
+//   const nextSlide = () => {
+//     if (currentIndex < totalPages - 1) setCurrentIndex(currentIndex + 1);
+//   };
+
+//   const prevSlide = () => {
+//     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+//   };
+
+//   return (
+//     <div className="mt-4">
+//       <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
+//       <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 p-4">
+//         <div className="grid grid-cols-3 gap-2">
+//           {visibleImages.map((url, idx) => (
+//             <div key={idx} className="relative">
+//               {/* ✅ CRITICAL: crossOrigin="anonymous" allows html2canvas to read this image */}
+//               <img
+//                 src={url}
+//                 alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
+//                 className="w-full h-24 object-cover rounded border"
+//                 crossOrigin="anonymous"
+//                 loading="lazy"
+//               />
+//               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5">
+//                 {currentIndex * itemsPerPage + idx + 1}/{images.length}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {totalPages > 1 && (
+//           <div className="flex justify-between mt-3">
+//             <button type="button" onClick={prevSlide} disabled={currentIndex === 0} className={`px-3 py-1 rounded ${currentIndex === 0 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Prev</button>
+//             <div className="flex items-center gap-1">
+//               {[...Array(totalPages)].map((_, i) => (
+//                 <button key={i} type="button" onClick={() => setCurrentIndex(i)} className={`w-3 h-3 rounded-full ${i === currentIndex ? "bg-blue-600" : "bg-gray-300"}`} />
+//               ))}
+//             </div>
+//             <button type="button" onClick={nextSlide} disabled={currentIndex === totalPages - 1} className={`px-3 py-1 rounded ${currentIndex === totalPages - 1 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Next</button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// const TyreInfo = ({ side, data }) => {
+//   if (!data) return null;
+//   const images = data.images || [];
+
+//   return (
+//     <div className="mb-6 border p-4 rounded bg-slate-50">
+//       <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+//       <div>
+//         <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+//         <ReportRow label="Year" value={data.year || "N/A"} />
+//         <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+//         <ReportRow label="Condition" value={data.condition || "N/A"} />
+//         <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+//       </div>
+//       {images.length > 0 && (
+//         <div className="mt-4 pt-4 border-t border-gray-200">
+//           <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
+//           <ImageSlider images={images} title={`${side} Tyre Images`} />
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// const StarRatingDisplay = ({ rating }) => (
+//   <div className="flex gap-1 justify-end">
+//     {[1, 2, 3, 4, 5].map((star) => (
+//       <Star key={star} size={16} className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+//     ))}
+//   </div>
+// );
+
+// // ✅ Robust Image Loader
+// async function waitForImages(rootEl) {
+//   const imgs = Array.from(rootEl.querySelectorAll("img"));
+//   await Promise.all(
+//     imgs.map(
+//       (img) =>
+//         new Promise((resolve) => {
+//           if (img.complete && img.naturalWidth > 0) return resolve();
+//           const done = () => {
+//             img.removeEventListener("load", done);
+//             img.removeEventListener("error", done);
+//             resolve();
+//           };
+//           img.addEventListener("load", done);
+//           img.addEventListener("error", done);
+//         })
+//     )
+//   );
+// }
+
+// export default function Report() {
+//   const { state } = useLocation();
+//   const { id } = useParams();
+
+//   const [reportData, setReportData] = useState(state?.finalReportData || null);
+//   const [loading, setLoading] = useState(!state?.finalReportData);
+//   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+//   const reportRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!id) {
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     fetch(`${API_URL}/reports/${id}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         if (data.success) {
+//           const r = data.report;
+//           setReportData({
+//             reportId: r.report_id,
+//             customerName: r.customer_name,
+//             overallRating: r.overall_rating,
+//             date: r.inspection_date,
+//             typeOfInspection: r.inspection_type,
+//             yearMakeModel: r.year_make_model,
+//             vehicleSummary: r.vehicle_data || {},
+//             wheels: r.wheels_data || {},
+//             paintAndBody: r.paint_body_data || { selectedParts: [], notes: "", images: [] },
+//             engineTransmission: r.engine_transmission || { images: [] },
+//             suspensionSteering: r.suspension_steering || { images: [] },
+//             interiors: r.interiors || { images: [] },
+//             batteryAnalysis: r.battery_analysis || { images: [] },
+//             otherSpecifications: r.other_specs || { images: [] },
+//             diagnosticReport: r.diagnostic_report || {},
+//             roadTest: r.road_test || {},
+//           });
+//         }
+//         setLoading(false);
+//       })
+//       .catch((err) => {
+//         console.error("Error fetching report:", err);
+//         if (state?.finalReportData) setReportData(state.finalReportData);
+//         setLoading(false);
+//       });
+//   }, [id, state?.finalReportData]);
+
+
+//   const downloadPDF = async () => {
+//     if (!reportRef.current) return;
+//     setIsGeneratingPDF(true);
+
+//     try {
+//       // 1. Load libraries
+//       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+//         import("jspdf"),
+//         import("html2canvas"),
+//         import("pdf-lib"),
+//       ]);
+
+//       const el = reportRef.current;
+
+//       // 2. Wait for all images to load physically in the DOM
+//       await waitForImages(el);
+
+//       // 3. Capture Canvas with CORS settings
+//       const canvas = await html2canvas(el, {
+//         useCORS: true,           // ✅ Allow cross-origin images
+//         allowTaint: false,       // ✅ Prevent tainted canvas
+//         scale: 2,                // ✅ Higher resolution
+//         backgroundColor: "#ffffff",
+//         logging: false,
+//         windowWidth: el.scrollWidth,
+//         windowHeight: el.scrollHeight,
+//         imageTimeout: 30000,
+//         // ✅ CRITICAL FIX: Force CORS on the cloned document before rendering
+//         onclone: (clonedDoc) => {
+//           const images = clonedDoc.querySelectorAll("img");
+//           images.forEach((img) => {
+//             // Only force CORS on external images (Cloudinary)
+//             if (img.src.startsWith("https://")) {
+//               img.setAttribute("crossorigin", "anonymous");
+//             }
+//           });
+//         },
+//       });
+
+//       // 4. Create PDF
+//       const imgData = canvas.toDataURL("image/jpeg", 1.0);
+//       const pdf = new jsPDF("p", "mm", "a4");
+//       const pdfWidth = pdf.internal.pageSize.getWidth();
+//       const pageHeight = pdf.internal.pageSize.getHeight();
+//       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+//       let heightLeft = imgHeight;
+//       let position = 0;
+
+//       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//       heightLeft -= pageHeight;
+
+//       while (heightLeft > 0) {
+//         position = heightLeft - imgHeight;
+//         pdf.addPage();
+//         pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//         heightLeft -= pageHeight;
+//       }
+
+//       // 5. Merge Diagnostic PDF if exists
+//       const merged = await PDFDocument.create();
+//       const reportPdfBytes = pdf.output("arraybuffer");
+//       const reportDoc = await PDFDocument.load(reportPdfBytes);
+//       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+//       reportPages.forEach((p) => merged.addPage(p));
+
+//       if (reportData?.diagnosticReport?.pdfFile) {
+//         try {
+//           const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+//           if (diagRes.ok) {
+//             const diagBytes = await diagRes.arrayBuffer();
+//             const diagDoc = await PDFDocument.load(diagBytes);
+//             const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+//             diagPages.forEach((p) => merged.addPage(p));
+//           }
+//         } catch (e) {
+//           console.warn("Could not merge diagnostic PDF:", e);
+//         }
+//       }
+
+//       // 6. Download
+//       const finalBytes = await merged.save();
+//       const blob = new Blob([finalBytes], { type: "application/pdf" });
+//       const url = URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//       URL.revokeObjectURL(url);
+
+//     } catch (err) {
+//       console.error("PDF error:", err);
+//       alert("PDF download failed: " + err.message);
+//     } finally {
+//       setIsGeneratingPDF(false);
+//     }
+//   };
+
+//   const printReport = () => window.print();
+
+//   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
+//   if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT DATA NOT FOUND.</div>;
+
+//   return (
+//     <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900">
+//       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
+//         <button onClick={printReport} className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700">
+//           <Printer size={18} /> Print
+//         </button>
+//         <button
+//           onClick={downloadPDF}
+//           disabled={isGeneratingPDF}
+//           className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
+//         >
+//           {isGeneratingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+//           {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+//         </button>
+//       </div>
+
+//       {/* ✅ Report Content Wrapper */}
+//       <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
+        
+//         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
+//           <div className="flex items-center gap-4">
+//             {/* Local images don't strictly need crossOrigin, but good practice */}
+//             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+//             <div>
+//               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
+//               <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Pre Purchase Inspection Report</p>
+//             </div>
+//           </div>
+//           <div className="mt-4 md:mt-0 text-right">
+//             <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">Report ID: {reportData.reportId}</p>
+//             <div className="flex items-center gap-2 justify-end">
+//               <span className="text-sm font-semibold">Overall Rating:</span>
+//               <StarRatingDisplay rating={reportData.overallRating} />
+//             </div>
+//           </div>
+//         </header>
+
+//         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+//            {reportData.vehicleSummary?.vehicleRegNo && (
+//             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//           {/* <ReportRow label="Customer Name" value={reportData.customerName} /> */}
+//           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
+//           <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
+//           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
+         
+//         </div>
+
+//         {/* <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {}).map(([key, value]) => (
+//             <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//           ))}
+//         </div> */}
+//         <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {})
+//             // 👇 1. FILTER OUT THE IMAGES SO THEY DON'T SHOW AS TEXT
+//             .filter(([key]) => key !== "vehicleImages" && key !== "vehicleRegNo") 
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//           ))}
+          
+//           {/* Handle Reg No specifically if you want it in the grid, or keep the filter above if you handled it in the header */}
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//              <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//         </div>
+
+//         {/* 👇 2. RENDER THE IMAGES SEPARATELY HERE */}
+//         {reportData.vehicleSummary?.vehicleImages?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Vehicle Exterior Images" />
+//             <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Vehicle Exterior Images" />
+//           </div>
+//         )}
+//         <SectionHeader title="Wheel and Tyre Condition" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+//           <TyreInfo side="Front LHS" data={reportData.wheels?.frontLhs} />
+//           <TyreInfo side="Front RHS" data={reportData.wheels?.frontRhs} />
+//           <TyreInfo side="Rear LHS" data={reportData.wheels?.rearLhs} />
+//           <TyreInfo side="Rear RHS" data={reportData.wheels?.rearRhs} />
+//         </div>
+
+//         <SectionHeader title="Paint and Body Appraisal" />
+//         <div className="flex flex-col md:flex-row gap-8 items-center border p-6 rounded-lg mb-4">
+//           <div className="w-full md:w-1/2 flex justify-center border-r pr-4">
+//             <img src="/CarImage.png" alt="Car Diagram" className="max-w-[200px] object-contain" crossOrigin="anonymous" />
+//           </div>
+//           <div className="w-full md:w-1/2">
+//             {reportData.paintAndBody?.selectedParts?.length > 0 && (
+//               <div className="mb-4">
+//                 <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Selected Defects</p>
+//                 <div className="bg-slate-50 p-3 rounded">
+//                   {reportData.paintAndBody.selectedParts.map((p) => (
+//                     <p key={p.id} className="text-sm mb-1">
+//                       <span className="font-bold text-red-600">{p.id}. {p.name}</span>: {p.defect}
+//                     </p>
+//                   ))}
+//                 </div>
+//               </div>
+//             )}
+//             <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Inspection Notes</p>
+//             <p className="text-sm text-gray-800 bg-slate-50 p-3 rounded min-h-[50px]">
+//               {reportData.paintAndBody?.notes || "No remarks."}
+//             </p>
+//           </div>
+//         </div>
+        
+//         {reportData.paintAndBody?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Paint & Body Images (Uploaded)" />
+//             <ImageSlider images={reportData.paintAndBody.images} title="Paint & Body Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Engine Transmission Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-4">
+//           {Object.entries(reportData.engineTransmission || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.engineTransmission?.comments && (
+//           <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-100">
+//             <p className="text-sm font-bold text-orange-800">Comments:</p>
+//             <p className="text-sm text-gray-800 mt-1">{reportData.engineTransmission.comments}</p>
+//           </div>
+//         )}
+//         {reportData.engineTransmission?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Engine Images (Uploaded)" />
+//             <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Suspension, Steering and Brake Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.suspensionSteering || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.suspensionSteering?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Suspension Images (Uploaded)" />
+//             <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Interiors, Electricals and Lightings" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.interiors || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.interiors?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Interior Images (Uploaded)" />
+//             <ImageSlider images={reportData.interiors.images} title="Interior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Battery Analysis" />
+//         <div className="w-full md:w-1/2 mb-4">
+//           <ReportRow label="Battery Report" value={reportData.batteryAnalysis?.["BATTERY REPORT"]} />
+//         </div>
+//         {reportData.batteryAnalysis?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Battery Images (Uploaded)" />
+//             <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Other Specifications" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.otherSpecifications || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.otherSpecifications?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Other Specs Images (Uploaded)" />
+//             <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Diagnostic Report" />
+//         <div className="bg-slate-50 p-6 rounded border mb-8">
+//           {reportData.diagnosticReport?.immediateAttention && (
+//             <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+//               <p className="text-sm font-bold text-red-800 uppercase mb-1">Immediate Attention Required</p>
+//               <p className="text-sm text-red-900">{reportData.diagnosticReport.immediateAttention}</p>
+//             </div>
+//           )}
+//           <p className="text-sm font-bold text-gray-700 uppercase mb-1 border-b pb-1">Diagnostic Comments</p>
+//           <p className="text-sm text-gray-800 mt-2">
+//             {reportData.diagnosticReport?.comments || "No diagnostic comments provided."}
+//           </p>
+//           {reportData.diagnosticReport?.pdfFile && (
+//             <div className="mt-4">
+//               <p className="text-sm font-bold text-gray-700 uppercase mb-1">Attached Diagnostic PDF</p>
+//               <a href={reportData.diagnosticReport.pdfFile} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+//                 View Diagnostic PDF (merged into downloaded PDF)
+//               </a>
+//             </div>
+//           )}
+//         </div>
+
+//         <SectionHeader title="Road Test Remarks" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.roadTest || {})
+//             .filter(([k]) => k !== "comments")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+
+//         <div className="mt-16 pt-8 border-t-2 border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider gap-2">
+//           <p>© {new Date().getFullYear()} Car Check Experts. All rights reserved.</p>
+//           <p>Generated on {new Date().toLocaleDateString()}</p>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+
+
+//END 13-03-26
+////START 09-03-26
+// import { useLocation, useParams } from "react-router-dom";
+// import { useEffect, useState, useRef } from "react";
+// import { Star, Download, Printer, Loader2 } from "lucide-react";
+
+// // const API_URL = "http://localhost:5001/api";
+// const API_URL = "https://carinspection-1.onrender.com/api";
+
+// const SectionHeader = ({ title }) => (
+//   <h2 className="text-sm font-bold uppercase tracking-wider bg-orange-100 text-orange-800 p-2 my-6">
+//     {title}
+//   </h2>
+// );
+
+// const ReportRow = ({ label, value }) => (
+//   <div className="flex justify-between items-center py-2 border-b border-slate-200">
+//     <p className="text-sm font-semibold uppercase text-gray-600 w-1/2">{label}</p>
+//     <p className="text-sm text-gray-800 w-1/2 text-right">{value}</p>
+//   </div>
+// );
+
+// const ImageSlider = ({ images, title = "Images" }) => {
+//   const [currentIndex, setCurrentIndex] = useState(0);
+//   const itemsPerPage = 3;
+
+//   if (!images || images.length === 0) {
+//     return <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} uploaded.</p>;
+//   }
+
+//   const totalPages = Math.ceil(images.length / itemsPerPage);
+//   const visibleImages = images.slice(
+//     currentIndex * itemsPerPage,
+//     (currentIndex + 1) * itemsPerPage
+//   );
+
+//   const nextSlide = () => {
+//     if (currentIndex < totalPages - 1) setCurrentIndex(currentIndex + 1);
+//   };
+
+//   const prevSlide = () => {
+//     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+//   };
+
+//   return (
+//     <div className="mt-4">
+//       <label className="text-sm font-bold text-gray-700 mb-2 block">{title} ({images.length})</label>
+//       <div className="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 p-4">
+//         <div className="grid grid-cols-3 gap-2">
+//           {visibleImages.map((url, idx) => (
+//             <div key={idx} className="relative">
+//               {/* ✅ CRITICAL: crossOrigin="anonymous" allows html2canvas to read this image */}
+//               <img
+//                 src={url}
+//                 alt={`${title} ${currentIndex * itemsPerPage + idx + 1}`}
+//                 className="w-full h-24 object-cover rounded border"
+//                 crossOrigin="anonymous"
+//                 loading="lazy"
+//               />
+//               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5">
+//                 {currentIndex * itemsPerPage + idx + 1}/{images.length}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {totalPages > 1 && (
+//           <div className="flex justify-between mt-3">
+//             <button type="button" onClick={prevSlide} disabled={currentIndex === 0} className={`px-3 py-1 rounded ${currentIndex === 0 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Prev</button>
+//             <div className="flex items-center gap-1">
+//               {[...Array(totalPages)].map((_, i) => (
+//                 <button key={i} type="button" onClick={() => setCurrentIndex(i)} className={`w-3 h-3 rounded-full ${i === currentIndex ? "bg-blue-600" : "bg-gray-300"}`} />
+//               ))}
+//             </div>
+//             <button type="button" onClick={nextSlide} disabled={currentIndex === totalPages - 1} className={`px-3 py-1 rounded ${currentIndex === totalPages - 1 ? "bg-gray-300" : "bg-blue-600 text-white"}`}>Next</button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// const TyreInfo = ({ side, data }) => {
+//   if (!data) return null;
+//   const images = data.images || [];
+
+//   return (
+//     <div className="mb-6 border p-4 rounded bg-slate-50">
+//       <h3 className="text-sm font-bold uppercase text-blue-800 border-b pb-2 mb-2">{side} Tyre</h3>
+//       <div>
+//         <ReportRow label="Manufacturer" value={data.manufacturer || "N/A"} />
+//         <ReportRow label="Year" value={data.year || "N/A"} />
+//         <ReportRow label="Tyre Size" value={data.tyreSize || "N/A"} />
+//         <ReportRow label="Condition" value={data.condition || "N/A"} />
+//         <ReportRow label="Wheel Alloys" value={data.wheelAlloys || "N/A"} />
+//       </div>
+//       {images.length > 0 && (
+//         <div className="mt-4 pt-4 border-t border-gray-200">
+//           <p className="text-xs font-bold text-gray-700 uppercase mb-2">Uploaded Images</p>
+//           <ImageSlider images={images} title={`${side} Tyre Images`} />
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// const StarRatingDisplay = ({ rating }) => (
+//   <div className="flex gap-1 justify-end">
+//     {[1, 2, 3, 4, 5].map((star) => (
+//       <Star key={star} size={16} className={`${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+//     ))}
+//   </div>
+// );
+
+// // ✅ Robust Image Loader
+// async function waitForImages(rootEl) {
+//   const imgs = Array.from(rootEl.querySelectorAll("img"));
+//   await Promise.all(
+//     imgs.map(
+//       (img) =>
+//         new Promise((resolve) => {
+//           if (img.complete && img.naturalWidth > 0) return resolve();
+//           const done = () => {
+//             img.removeEventListener("load", done);
+//             img.removeEventListener("error", done);
+//             resolve();
+//           };
+//           img.addEventListener("load", done);
+//           img.addEventListener("error", done);
+//         })
+//     )
+//   );
+// }
+
+// export default function Report() {
+//   const { state } = useLocation();
+//   const { id } = useParams();
+
+//   const [reportData, setReportData] = useState(state?.finalReportData || null);
+//   const [loading, setLoading] = useState(!state?.finalReportData);
+//   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+//   const reportRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!id) {
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     fetch(`${API_URL}/reports/${id}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         if (data.success) {
+//           const r = data.report;
+//           setReportData({
+//             reportId: r.report_id,
+//             customerName: r.customer_name,
+//             overallRating: r.overall_rating,
+//             date: r.inspection_date,
+//             typeOfInspection: r.inspection_type,
+//             yearMakeModel: r.year_make_model,
+//             vehicleSummary: r.vehicle_data || {},
+//             wheels: r.wheels_data || {},
+//             paintAndBody: r.paint_body_data || { selectedParts: [], notes: "", images: [] },
+//             engineTransmission: r.engine_transmission || { images: [] },
+//             suspensionSteering: r.suspension_steering || { images: [] },
+//             interiors: r.interiors || { images: [] },
+//             batteryAnalysis: r.battery_analysis || { images: [] },
+//             otherSpecifications: r.other_specs || { images: [] },
+//             diagnosticReport: r.diagnostic_report || {},
+//             roadTest: r.road_test || {},
+//           });
+//         }
+//         setLoading(false);
+//       })
+//       .catch((err) => {
+//         console.error("Error fetching report:", err);
+//         if (state?.finalReportData) setReportData(state.finalReportData);
+//         setLoading(false);
+//       });
+//   }, [id, state?.finalReportData]);
+
+
+//   const downloadPDF = async () => {
+//     if (!reportRef.current) return;
+//     setIsGeneratingPDF(true);
+
+//     try {
+//       // 1. Load libraries
+//       const [{ jsPDF }, { default: html2canvas }, { PDFDocument }] = await Promise.all([
+//         import("jspdf"),
+//         import("html2canvas"),
+//         import("pdf-lib"),
+//       ]);
+
+//       const el = reportRef.current;
+
+//       // 2. Wait for all images to load physically in the DOM
+//       await waitForImages(el);
+
+//       // 3. Capture Canvas with CORS settings
+//       const canvas = await html2canvas(el, {
+//         useCORS: true,           // ✅ Allow cross-origin images
+//         allowTaint: false,       // ✅ Prevent tainted canvas
+//         scale: 2,                // ✅ Higher resolution
+//         backgroundColor: "#ffffff",
+//         logging: false,
+//         windowWidth: el.scrollWidth,
+//         windowHeight: el.scrollHeight,
+//         imageTimeout: 30000,
+//         // ✅ CRITICAL FIX: Force CORS on the cloned document before rendering
+//         onclone: (clonedDoc) => {
+//           const images = clonedDoc.querySelectorAll("img");
+//           images.forEach((img) => {
+//             // Only force CORS on external images (Cloudinary)
+//             if (img.src.startsWith("https://")) {
+//               img.setAttribute("crossorigin", "anonymous");
+//             }
+//           });
+//         },
+//       });
+
+//       // 4. Create PDF
+//       const imgData = canvas.toDataURL("image/jpeg", 1.0);
+//       const pdf = new jsPDF("p", "mm", "a4");
+//       const pdfWidth = pdf.internal.pageSize.getWidth();
+//       const pageHeight = pdf.internal.pageSize.getHeight();
+//       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+//       let heightLeft = imgHeight;
+//       let position = 0;
+
+//       pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//       heightLeft -= pageHeight;
+
+//       while (heightLeft > 0) {
+//         position = heightLeft - imgHeight;
+//         pdf.addPage();
+//         pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, imgHeight);
+//         heightLeft -= pageHeight;
+//       }
+
+//       // 5. Merge Diagnostic PDF if exists
+//       const merged = await PDFDocument.create();
+//       const reportPdfBytes = pdf.output("arraybuffer");
+//       const reportDoc = await PDFDocument.load(reportPdfBytes);
+//       const reportPages = await merged.copyPages(reportDoc, reportDoc.getPageIndices());
+//       reportPages.forEach((p) => merged.addPage(p));
+
+//       if (reportData?.diagnosticReport?.pdfFile) {
+//         try {
+//           const diagRes = await fetch(reportData.diagnosticReport.pdfFile);
+//           if (diagRes.ok) {
+//             const diagBytes = await diagRes.arrayBuffer();
+//             const diagDoc = await PDFDocument.load(diagBytes);
+//             const diagPages = await merged.copyPages(diagDoc, diagDoc.getPageIndices());
+//             diagPages.forEach((p) => merged.addPage(p));
+//           }
+//         } catch (e) {
+//           console.warn("Could not merge diagnostic PDF:", e);
+//         }
+//       }
+
+//       // 6. Download
+//       const finalBytes = await merged.save();
+//       const blob = new Blob([finalBytes], { type: "application/pdf" });
+//       const url = URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `Car-Inspection-${reportData.reportId || "Report"}.pdf`;
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//       URL.revokeObjectURL(url);
+
+//     } catch (err) {
+//       console.error("PDF error:", err);
+//       alert("PDF download failed: " + err.message);
+//     } finally {
+//       setIsGeneratingPDF(false);
+//     }
+//   };
+
+//   const printReport = () => window.print();
+
+//   if (loading) return <div className="p-10 text-center font-bold text-xl text-blue-800">Loading report...</div>;
+//   if (!reportData) return <div className="p-10 text-center font-bold text-red-600">REPORT DATA NOT FOUND.</div>;
+
+//   return (
+//     <section className="bg-gray-200 py-12 px-4 font-sans text-gray-900">
+//       <div className="max-w-4xl mx-auto mb-6 flex justify-end gap-4 print:hidden">
+//         <button onClick={printReport} className="px-4 py-2 bg-slate-600 text-white rounded flex items-center gap-2 hover:bg-slate-700">
+//           <Printer size={18} /> Print
+//         </button>
+//         <button
+//           onClick={downloadPDF}
+//           disabled={isGeneratingPDF}
+//           className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
+//         >
+//           {isGeneratingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+//           {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+//         </button>
+//       </div>
+
+//       {/* ✅ Report Content Wrapper */}
+//       <div ref={reportRef} id="report-content" className="max-w-4xl mx-auto bg-white p-12 text-gray-900 font-sans shadow-lg">
+        
+//         <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-orange-200 pb-6">
+//           <div className="flex items-center gap-4">
+//             {/* Local images don't strictly need crossOrigin, but good practice */}
+//             <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+//             <div>
+//               <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">CAR CHECK EXPERTS</h1>
+//               <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Pre Purchase Inspection Report</p>
+//             </div>
+//           </div>
+//           <div className="mt-4 md:mt-0 text-right">
+//             <p className="text-sm font-bold bg-slate-100 px-3 py-1 rounded inline-block mb-2">Report ID: {reportData.reportId}</p>
+//             <div className="flex items-center gap-2 justify-end">
+//               <span className="text-sm font-semibold">Overall Rating:</span>
+//               <StarRatingDisplay rating={reportData.overallRating} />
+//             </div>
+//           </div>
+//         </header>
+
+//         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+//            {reportData.vehicleSummary?.vehicleRegNo && (
+//             <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//           {/* <ReportRow label="Customer Name" value={reportData.customerName} /> */}
+//           <ReportRow label="Date/Time" value={new Date(reportData.date).toLocaleString()} />
+//           <ReportRow label="Type of Inspection" value={reportData.typeOfInspection} />
+//           <ReportRow label="Year/Make/Model" value={reportData.yearMakeModel} />
+         
+//         </div>
+
+//         {/* <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {}).map(([key, value]) => (
+//             <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//           ))}
+//         </div> */}
+//         <SectionHeader title="Vehicle Summary" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 bg-white p-4 mb-8">
+//           {Object.entries(reportData.vehicleSummary || {})
+//             // 👇 1. FILTER OUT THE IMAGES SO THEY DON'T SHOW AS TEXT
+//             .filter(([key]) => key !== "vehicleImages" && key !== "vehicleRegNo") 
+//             .map(([key, value]) => (
+//               <ReportRow key={key} label={key.replace(/([A-Z])/g, " $1").trim()} value={value} />
+//           ))}
+          
+//           {/* Handle Reg No specifically if you want it in the grid, or keep the filter above if you handled it in the header */}
+//           {reportData.vehicleSummary?.vehicleRegNo && (
+//              <ReportRow label="Vehicle Reg No" value={reportData.vehicleSummary.vehicleRegNo} />
+//           )}
+//         </div>
+
+//         {/* 👇 2. RENDER THE IMAGES SEPARATELY HERE */}
+//         {reportData.vehicleSummary?.vehicleImages?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Vehicle Exterior Images" />
+//             <ImageSlider images={reportData.vehicleSummary.vehicleImages} title="Vehicle Exterior Images" />
+//           </div>
+//         )}
+//         <SectionHeader title="Wheel and Tyre Condition" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+//           <TyreInfo side="Front LHS" data={reportData.wheels?.frontLhs} />
+//           <TyreInfo side="Front RHS" data={reportData.wheels?.frontRhs} />
+//           <TyreInfo side="Rear LHS" data={reportData.wheels?.rearLhs} />
+//           <TyreInfo side="Rear RHS" data={reportData.wheels?.rearRhs} />
+//         </div>
+
+//         <SectionHeader title="Paint and Body Appraisal" />
+//         <div className="flex flex-col md:flex-row gap-8 items-center border p-6 rounded-lg mb-4">
+//           <div className="w-full md:w-1/2 flex justify-center border-r pr-4">
+//             <img src="/CarImage.png" alt="Car Diagram" className="max-w-[200px] object-contain" crossOrigin="anonymous" />
+//           </div>
+//           <div className="w-full md:w-1/2">
+//             {reportData.paintAndBody?.selectedParts?.length > 0 && (
+//               <div className="mb-4">
+//                 <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Selected Defects</p>
+//                 <div className="bg-slate-50 p-3 rounded">
+//                   {reportData.paintAndBody.selectedParts.map((p) => (
+//                     <p key={p.id} className="text-sm mb-1">
+//                       <span className="font-bold text-red-600">{p.id}. {p.name}</span>: {p.defect}
+//                     </p>
+//                   ))}
+//                 </div>
+//               </div>
+//             )}
+//             <p className="text-sm font-bold text-gray-700 mb-2 uppercase border-b pb-1">Inspection Notes</p>
+//             <p className="text-sm text-gray-800 bg-slate-50 p-3 rounded min-h-[50px]">
+//               {reportData.paintAndBody?.notes || "No remarks."}
+//             </p>
+//           </div>
+//         </div>
+        
+//         {reportData.paintAndBody?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Paint & Body Images (Uploaded)" />
+//             <ImageSlider images={reportData.paintAndBody.images} title="Paint & Body Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Engine Transmission Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-4">
+//           {Object.entries(reportData.engineTransmission || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.engineTransmission?.comments && (
+//           <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-100">
+//             <p className="text-sm font-bold text-orange-800">Comments:</p>
+//             <p className="text-sm text-gray-800 mt-1">{reportData.engineTransmission.comments}</p>
+//           </div>
+//         )}
+//         {reportData.engineTransmission?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Engine Images (Uploaded)" />
+//             <ImageSlider images={reportData.engineTransmission.images} title="Engine Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Suspension, Steering and Brake Inspection" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.suspensionSteering || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.suspensionSteering?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Suspension Images (Uploaded)" />
+//             <ImageSlider images={reportData.suspensionSteering.images} title="Suspension Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Interiors, Electricals and Lightings" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.interiors || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.interiors?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Interior Images (Uploaded)" />
+//             <ImageSlider images={reportData.interiors.images} title="Interior Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Battery Analysis" />
+//         <div className="w-full md:w-1/2 mb-4">
+//           <ReportRow label="Battery Report" value={reportData.batteryAnalysis?.["BATTERY REPORT"]} />
+//         </div>
+//         {reportData.batteryAnalysis?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Battery Images (Uploaded)" />
+//             <ImageSlider images={reportData.batteryAnalysis.images} title="Battery Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Other Specifications" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.otherSpecifications || {})
+//             .filter(([k]) => k !== "comments" && k !== "images")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+//         {reportData.otherSpecifications?.images?.length > 0 && (
+//           <div className="mb-8">
+//             <SectionHeader title="Other Specs Images (Uploaded)" />
+//             <ImageSlider images={reportData.otherSpecifications.images} title="Other Specs Images" />
+//           </div>
+//         )}
+
+//         <SectionHeader title="Diagnostic Report" />
+//         <div className="bg-slate-50 p-6 rounded border mb-8">
+//           {reportData.diagnosticReport?.immediateAttention && (
+//             <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+//               <p className="text-sm font-bold text-red-800 uppercase mb-1">Immediate Attention Required</p>
+//               <p className="text-sm text-red-900">{reportData.diagnosticReport.immediateAttention}</p>
+//             </div>
+//           )}
+//           <p className="text-sm font-bold text-gray-700 uppercase mb-1 border-b pb-1">Diagnostic Comments</p>
+//           <p className="text-sm text-gray-800 mt-2">
+//             {reportData.diagnosticReport?.comments || "No diagnostic comments provided."}
+//           </p>
+//           {reportData.diagnosticReport?.pdfFile && (
+//             <div className="mt-4">
+//               <p className="text-sm font-bold text-gray-700 uppercase mb-1">Attached Diagnostic PDF</p>
+//               <a href={reportData.diagnosticReport.pdfFile} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+//                 View Diagnostic PDF (merged into downloaded PDF)
+//               </a>
+//             </div>
+//           )}
+//         </div>
+
+//         <SectionHeader title="Road Test Remarks" />
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-8">
+//           {Object.entries(reportData.roadTest || {})
+//             .filter(([k]) => k !== "comments")
+//             .map(([key, value]) => <ReportRow key={key} label={key} value={value} />)}
+//         </div>
+
+//         <div className="mt-16 pt-8 border-t-2 border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider gap-2">
+//           <p>© {new Date().getFullYear()} Car Check Experts. All rights reserved.</p>
+//           <p>Generated on {new Date().toLocaleDateString()}</p>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+//END 09-03-26
 
 // import { useLocation, useParams } from "react-router-dom";
 // import { useEffect, useState, useRef } from "react";
